@@ -1,5 +1,6 @@
 
 export type CollectionStatus = 'pending' | 'active' | 'completed' | 'cancelled';
+export type GiftType = 'physical' | 'digital';
 
 export interface User {
   id: number;
@@ -19,8 +20,21 @@ export interface Collection {
   organizerId: number;
   giftRecipientId?: number;
   participants: CollectionParticipant[];
+  groupChatId?: number;
+  giftType?: GiftType;
+  giftLink?: string;
+  giftOptions?: GiftOption[];
+  deadline?: number;
   createdAt: number;
   updatedAt: number;
+}
+
+export interface GiftOption {
+  id: string;
+  collectionId: string;
+  title: string;
+  description?: string;
+  votes: number;
 }
 
 export interface CollectionParticipant {
@@ -28,6 +42,7 @@ export interface CollectionParticipant {
   collectionId: string;
   contribution: number;
   hasPaid: boolean;
+  vote?: string; // ID of the gift option they voted for
 }
 
 export interface Transaction {

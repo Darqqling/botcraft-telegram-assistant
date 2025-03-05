@@ -1,6 +1,5 @@
-
 import { v4 as uuidv4 } from 'uuid';
-import { Collection, CollectionParticipant, CollectionStatus, User } from '@/types/collectionTypes';
+import { Collection, CollectionParticipant, CollectionStatus, User, GiftOption } from '@/types/collectionTypes';
 import { getCollectionById, saveCollection, getUserById, saveUser, saveTransaction } from './storageService';
 import { sendMessage } from './telegramService';
 
@@ -12,7 +11,8 @@ export const createCollection = async (
   description: string,
   targetAmount: number,
   participantIds: number[],
-  giftRecipientId?: number
+  giftRecipientId?: number,
+  groupChatId?: number
 ): Promise<Collection> => {
   // Создаем участников с нулевыми взносами
   const participants: CollectionParticipant[] = participantIds.map(userId => ({
@@ -33,6 +33,8 @@ export const createCollection = async (
     organizerId,
     giftRecipientId,
     participants,
+    groupChatId,
+    giftOptions: [],
     createdAt: Date.now(),
     updatedAt: Date.now()
   };
@@ -124,6 +126,146 @@ export const addPayment = async (
   if (collection.currentAmount >= collection.targetAmount) {
     await notifyTargetReached(token, collection);
   }
+  
+  // Если есть групповой чат, отправляем уведомление
+  if (collection.groupChatId) {
+    const user = getUserById(userId);
+    const userName = user ? `${user.firstName} ${user.lastName || ''}`.trim() : `Участник ${userId}`;
+    
+    const message = `
+${userName} внес(ла) ${amount} руб. в сбор "${collection.title}"!
+
+Уже собрано: ${collection.currentAmount} из ${collection.targetAmount} руб. (${Math.round(collection.currentAmount / collection.targetAmount * 100)}%)
+    `;
+    
+    try {
+      await sendMessage(token, collection.groupChatId, message);
+    } catch (error) {
+      console.error('Ошибка при отправке уведомления в групповой чат:', error);
+    }
+  }
+  
+  return true;
+};
+
+// Обновление срока сбора
+export const updateCollectionDeadline = (
+  collectionId: string,
+  deadline: number
+): boolean => {
+  const collection = getCollectionById(collectionId);
+  
+  if (!collection) {
+    return false;
+  }
+  
+  collection.deadline = deadline;
+  collection.updatedAt = Date.now();
+  
+  // Сохраняем обновленную коллекцию
+  saveCollection(collection);
+  
+  return true;
+};
+
+// Обновление целевой суммы сбора
+export const updateCollectionTargetAmount = (
+  collectionId: string,
+  targetAmount: number
+): boolean => {
+  const collection = getCollectionById(collectionId);
+  
+  if (!collection) {
+    return false;
+  }
+  
+  collection.targetAmount = targetAmount;
+  collection.updatedAt = Date.now();
+  
+  // Сохраняем обновленную коллекцию
+  saveCollection(collection);
+  
+  return true;
+};
+
+// Добавление варианта подарка
+export const addGiftOption = (
+  collectionId: string,
+  title: string,
+  description?: string
+): GiftOption => {
+  const collection = getCollectionById(collectionId);
+  
+  if (!collection) {
+    throw new Error('Коллекция не найдена');
+  }
+  
+  if (!collection.giftOptions) {
+    collection.giftOptions = [];
+  }
+  
+  const giftOption: GiftOption = {
+    id: uuidv4(),
+    collectionId,
+    title,
+    description,
+    votes: 0
+  };
+  
+  collection.giftOptions.push(giftOption);
+  collection.updatedAt = Date.now();
+  
+  // Сохраняем обновленную коллекцию
+  saveCollection(collection);
+  
+  return giftOption;
+};
+
+// Голосование за вариант подарка
+export const voteForGiftOption = (
+  collectionId: string,
+  userId: number,
+  optionId: string
+): boolean => {
+  const collection = getCollectionById(collectionId);
+  
+  if (!collection || !collection.giftOptions) {
+    return false;
+  }
+  
+  // Находим вариант подарка
+  const optionIndex = collection.giftOptions.findIndex(opt => opt.id === optionId);
+  
+  if (optionIndex === -1) {
+    return false;
+  }
+  
+  // Находим участника
+  const participantIndex = collection.participants.findIndex(p => p.userId === userId);
+  
+  if (participantIndex === -1) {
+    return false;
+  }
+  
+  // Если участник уже голосовал, снимаем предыдущий голос
+  if (collection.participants[participantIndex].vote) {
+    const prevOptionIndex = collection.giftOptions.findIndex(opt => opt.id === collection.participants[participantIndex].vote);
+    
+    if (prevOptionIndex !== -1 && collection.giftOptions[prevOptionIndex].votes > 0) {
+      collection.giftOptions[prevOptionIndex].votes--;
+    }
+  }
+  
+  // Обновляем голос участника
+  collection.participants[participantIndex].vote = optionId;
+  
+  // Увеличиваем количество голосов за вариант
+  collection.giftOptions[optionIndex].votes++;
+  
+  collection.updatedAt = Date.now();
+  
+  // Сохраняем обновленную коллекцию
+  saveCollection(collection);
   
   return true;
 };
