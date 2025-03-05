@@ -1,7 +1,6 @@
-
 import { v4 as uuidv4 } from 'uuid';
 import { createCollection, updateCollectionStatus, addPayment, notifyPaymentSuccess, ensureUserExists } from './collectionService';
-import { getCollectionById } from './storageService';
+import { getCollectionById, getUserById } from './storageService';
 
 // Обработка команды создания новой коллекции
 export const handleNewCollection = async (
