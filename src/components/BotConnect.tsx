@@ -5,10 +5,13 @@ import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { toast } from "sonner";
 import { MessageCircle } from "lucide-react";
+import { getMe } from "@/services/telegramService";
+import { useNavigate } from "react-router-dom";
 
 const BotConnect = () => {
   const [token, setToken] = useState("");
   const [loading, setLoading] = useState(false);
+  const navigate = useNavigate();
 
   const handleConnect = async () => {
     if (!token) {
@@ -17,9 +20,25 @@ const BotConnect = () => {
     }
     
     setLoading(true);
-    // Здесь будет логика подключения к боту
-    toast.success("Бот успешно подключен!");
-    setLoading(false);
+    
+    try {
+      // Проверяем токен, запрашивая информацию о боте
+      const botInfo = await getMe(token);
+      
+      // Сохраняем токен и информацию о боте в localStorage
+      localStorage.setItem('telegram_bot_token', token);
+      localStorage.setItem('telegram_bot_info', JSON.stringify(botInfo));
+      
+      toast.success(`Бот @${botInfo.username} успешно подключен!`);
+      
+      // Перенаправляем на панель управления
+      navigate('/dashboard');
+    } catch (error) {
+      console.error('Ошибка при подключении бота:', error);
+      toast.error("Ошибка подключения. Проверьте токен и попробуйте снова.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
