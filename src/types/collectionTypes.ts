@@ -1,5 +1,5 @@
 
-export type CollectionStatus = 'pending' | 'active' | 'completed' | 'cancelled';
+export type CollectionStatus = 'pending' | 'active' | 'completed' | 'cancelled' | 'frozen';
 export type GiftType = 'physical' | 'digital';
 
 export interface User {
@@ -8,6 +8,10 @@ export interface User {
   firstName: string;
   lastName?: string;
   chatId: number;
+  isBlocked?: boolean;
+  blockReason?: string;
+  blockedAt?: number;
+  createdAt: number;
 }
 
 export interface Collection {
@@ -52,4 +56,7 @@ export interface Transaction {
   amount: number;
   type: 'contribution' | 'refund';
   timestamp: number;
+  cancelled?: boolean;
+  cancelReason?: string;
+  cancelledAt?: number;
 }
