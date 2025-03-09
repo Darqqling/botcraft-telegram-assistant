@@ -1,6 +1,7 @@
 import { addPayment, notifyPaymentSuccess, ensureUserExists } from '../collectionService';
 import { getCollectionById, getUserById, saveCollection } from '../storageService';
 import { sendMessage, sendGroupMessage } from './baseCommandHandler';
+import { InlineKeyboardMarkup } from '@/services/telegramService';
 
 // Обработка команды присоединения к сбору
 export const handleJoinCollection = async (
@@ -181,7 +182,7 @@ export const handlePay = async (
   }
 };
 
-// Обра��отка callback'а для присоединения к сбору
+// Обработка callback'а для присоединения к сбору
 export const handleJoinCollectionCallback = async (
   token: string,
   userId: number,

@@ -1,4 +1,3 @@
-importtypescript
 import { v4 as uuidv4 } from 'uuid';
 import { Collection, GiftOption } from '@/types/collectionTypes';
 import { sendMessage } from './baseCommandHandler';

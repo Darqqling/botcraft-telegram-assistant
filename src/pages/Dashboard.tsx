@@ -92,7 +92,12 @@ const Dashboard = () => {
       
       for (const update of data) {
         if (update.message?.text && typeof update.message.text === 'string' && update.message.text.startsWith('/')) {
-          const response = await processCommand(token, update.message);
+          const response = await processCommand(
+            update.message.text,
+            update.message.chat.id,
+            update.message.from.id,
+            token
+          );
           
           if (response) {
             await sendMessage(token, update.message.chat.id, response);
