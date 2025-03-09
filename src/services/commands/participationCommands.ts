@@ -1,7 +1,6 @@
-
 import { addPayment, notifyPaymentSuccess, ensureUserExists } from '../collectionService';
 import { getCollectionById, getUserById, saveCollection } from '../storageService';
-import { sendMessage, InlineKeyboardMarkup } from '../telegramService';
+import { sendMessage, sendGroupMessage } from './baseCommandHandler';
 
 // Обработка команды присоединения к сбору
 export const handleJoinCollection = async (
@@ -182,7 +181,7 @@ export const handlePay = async (
   }
 };
 
-// Обработка callback'а для присоединения к сбору
+// Обра��отка callback'а для присоединения к сбору
 export const handleJoinCollectionCallback = async (
   token: string,
   userId: number,
@@ -333,4 +332,3 @@ export const handlePayCallback = async (
 
 // Import updateCollectionStatus for handleJoinCollection
 import { updateCollectionStatus } from '../collectionService';
-import { sendGroupMessage } from './baseCommandHandler';

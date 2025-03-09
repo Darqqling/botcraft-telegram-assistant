@@ -1,3 +1,4 @@
+
 // Export sendMessage so it can be imported by other command handlers
 export const sendMessage = async (
   botToken: string,
@@ -9,13 +10,16 @@ export const sendMessage = async (
   return Promise.resolve({ ok: true });
 };
 
-// Re-export all command handlers from their respective modules
-export * from './commands/baseCommandHandler';
-export * from './commands/collectionCreationCommands';
-export * from './commands/participationCommands';
-export * from './commands/organizerCommands';
-export * from './commands/statusCommands';
-export * from './commands/giftOptionCommands';
+// Add sendGroupMessage which is used in participationCommands.ts
+export const sendGroupMessage = async (
+  botToken: string,
+  chatId: number,
+  text: string,
+  options?: any
+): Promise<any> => {
+  // Implementation goes here - same as sendMessage for now
+  return sendMessage(botToken, chatId, text, options);
+};
 
 export const processCommand = (
   command: string,
@@ -34,3 +38,17 @@ export const processCallbackQuery = (
   // Implementation goes here
   return Promise.resolve({ ok: true });
 };
+
+// Import the command handlers without creating a circular dependency
+import * as collectionCreationCommands from './collectionCreationCommands';
+import * as participationCommands from './participationCommands';
+import * as organizerCommands from './organizerCommands';
+import * as statusCommands from './statusCommands';
+import * as giftOptionCommands from './giftOptionCommands';
+
+// These functions need to be added to handle callback data
+export const handleNewCollectionCallback = collectionCreationCommands.handleNewCollectionCallback;
+export const handleGroupNewCollectionCallback = collectionCreationCommands.handleGroupNewCollectionCallback;
+export const handleSendRemindersCallback = organizerCommands.handleSendRemindersCallback;
+export const handleStatusCallback = statusCommands.handleStatusCallback;
+export const handleCollectionStatusCallback = statusCommands.handleCollectionStatusCallback;
