@@ -1,69 +1,172 @@
-# Welcome to your Lovable project
 
-## Project info
+# Бот для организации групповых сборов на подарки
 
-**URL**: https://lovable.dev/projects/d416107e-a681-4d9e-b962-9966684012db
+## О проекте
 
-## How can I edit this code?
+Телеграм-бот для организации групповых сборов на подарки. Помогает коллегам, друзьям и родственникам проще организовать сбор денег на совместный подарок: создать сбор, пригласить участников, проголосовать за вариант подарка, контролировать внесение средств и успешно завершить процесс.
 
-There are several ways of editing your application.
+## Основные возможности
 
-**Use Lovable**
+- Создание сборов на подарки в личном чате или групповом чате
+- Приглашение участников
+- Отслеживание внесенных сумм
+- Голосование за варианты подарков
+- Автоматические напоминания о необходимости внести деньги
+- Получение статуса сбора в любой момент
+- Завершение сбора и подтверждение вручения подарка
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/d416107e-a681-4d9e-b962-9966684012db) and start prompting.
+## Как начать использование
 
-Changes made via Lovable will be committed automatically to this repo.
+### Добавление бота в чат
 
-**Use your preferred IDE**
+1. Найдите бота в Telegram по имени @GiftCollectionBot
+2. Начните личную переписку с ботом, отправив команду `/start`
+3. Для использования в групповом чате, добавьте бота в группу и дайте ему права администратора
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+### Создание первого сбора
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+#### В личном чате с ботом:
 
-Follow these steps:
-
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
+```
+/new_collection День рождения Анны|Собираем на подарок на юбилей|5000|123456789|987654321,876543210
 ```
 
-**Edit a file directly in GitHub**
+Где:
+- `День рождения Анны` - название сбора
+- `Собираем на подарок на юбилей` - описание сбора
+- `5000` - целевая сумма в рублях
+- `123456789` - ID получателя подарка (необязательно)
+- `987654321,876543210` - ID участников через запятую (необязательно)
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+#### В групповом чате:
 
-**Use GitHub Codespaces**
+```
+/group_new_collection Юбилей директора|Собираем на подарок руководителю|10000|123456789|14
+```
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+Где последний параметр `14` - срок сбора в днях.
 
-## What technologies are used for this project?
+### Участие в сборе
 
-This project is built with .
+Чтобы присоединиться к сбору, используйте команду:
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+```
+/join_collection ID_сбора
+```
 
-## How can I deploy this project?
+### Внесение денег
 
-Simply open [Lovable](https://lovable.dev/projects/d416107e-a681-4d9e-b962-9966684012db) and click on Share -> Publish.
+Чтобы внести деньги в сбор, используйте команду:
 
-## I want to use a custom domain - is that possible?
+```
+/pay ID_сбора 1000
+```
 
-We don't support custom domains (yet). If you want to deploy your project under your own domain then we recommend using Netlify. Visit our docs for more details: [Custom domains](https://docs.lovable.dev/tips-tricks/custom-domain/)
+Где `1000` - вносимая сумма в рублях.
+
+### Проверка статуса сбора
+
+Для просмотра краткого статуса сбора:
+
+```
+/status ID_сбора
+```
+
+Для просмотра детального статуса сбора:
+
+```
+/collection_status ID_сбора
+```
+
+### Варианты подарков и голосование
+
+Добавление варианта подарка:
+
+```
+/add_gift_option ID_сбора|Название варианта|Описание варианта
+```
+
+Голосование за вариант:
+
+```
+/vote ID_сбора ID_варианта
+```
+
+### Управление сбором (для организатора)
+
+Изменение целевой суммы:
+
+```
+/update_amount ID_сбора новая_сумма
+```
+
+Отправка напоминаний участникам:
+
+```
+/send_reminders ID_сбора
+```
+
+Подтверждение вручения подарка:
+
+```
+/confirm_gift ID_сбора
+```
+
+Отмена сбора:
+
+```
+/cancel ID_сбора
+```
+
+## Полный список команд
+
+| Команда | Описание |
+|---------|----------|
+| `/start` | Запустить бота и получить приветствие |
+| `/help` | Получить список доступных команд |
+| `/new_collection` | Создать новый сбор |
+| `/group_new_collection` | Создать новый сбор в групповом чате |
+| `/join_collection` | Присоединиться к сбору |
+| `/pay` | Внести деньги в сбор |
+| `/status` | Посмотреть краткий статус сбора |
+| `/collection_status` | Посмотреть подробный статус сбора |
+| `/add_gift_option` | Добавить вариант подарка |
+| `/vote` | Проголосовать за вариант подарка |
+| `/update_amount` | Изменить целевую сумму сбора |
+| `/send_reminders` | Отправить напоминания участникам |
+| `/confirm_gift` | Подтвердить вручение подарка |
+| `/cancel` | Отменить сбор |
+
+## Типичные сценарии использования
+
+### Сценарий 1: День рождения коллеги
+
+1. Организатор добавляет бота в групповой чат коллег (без именинника)
+2. Создает сбор с помощью команды `/group_new_collection`
+3. Участники присоединяются командой `/join_collection`
+4. Организатор или участники добавляют варианты подарков
+5. Все голосуют за понравившиеся варианты
+6. Участники вносят деньги командой `/pay`
+7. После достижения нужной суммы, организатор покупает подарок
+8. Организатор подтверждает вручение подарка командой `/confirm_gift`
+
+### Сценарий 2: Личный сбор среди друзей
+
+1. Организатор создает сбор в личном чате с ботом командой `/new_collection`
+2. Приглашает друзей через личные сообщения, сообщая им ID сбора
+3. Друзья присоединяются к сбору через личный чат с ботом
+4. Организатор следит за сбором средств, при необходимости отправляет напоминания
+5. После завершения сбора, организатор закрывает его командой `/confirm_gift`
+
+## Безопасность
+
+- Бот не запрашивает и не хранит платежные данные пользователей
+- Для внесения платежей используются вашими обычные способы перевода денег организатору
+- Бот только фиксирует факт оплаты и суммы для учета в рамках сбора
+
+## Техническая поддержка
+
+Если у вас возникли вопросы или проблемы при использовании бота, обратитесь к администратору:
+
+- Email: support@giftcollectionbot.example.com
+- Telegram: @GiftCollectionSupport

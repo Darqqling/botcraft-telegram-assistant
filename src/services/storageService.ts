@@ -1,10 +1,15 @@
-
 import { Collection, User, Transaction } from "@/types/collectionTypes";
 
 // Ключи для localStorage
 const COLLECTIONS_KEY = 'telegram_bot_collections';
 const USERS_KEY = 'telegram_bot_users';
 const TRANSACTIONS_KEY = 'telegram_bot_transactions';
+
+// Хранилище для групповых чатов
+let groupChats: { id: number, title: string }[] = [];
+
+// Хранилище для истории сообщений
+let chatHistory: ChatHistory[] = [];
 
 // Получение коллекций
 export const getCollections = (): Collection[] => {
@@ -124,4 +129,54 @@ export const saveTransaction = (transaction: Transaction): void => {
   const transactions = getTransactions();
   transactions.push(transaction);
   saveTransactions(transactions);
+};
+
+// Экспорт функций для работы с групповыми чатами
+export const getGroupChats = () => groupChats;
+export const setGroupChats = (chats: { id: number, title: string }[]) => {
+  groupChats = chats;
+};
+
+// Экспорт функций для работы с историей сообщений
+export const getChatHistory = () => chatHistory;
+export const setChatHistory = (history: ChatHistory[]) => {
+  chatHistory = history;
+};
+
+// Получение истории сообщений по ID чата
+export const getChatHistoryByChatId = (chatId: number) => {
+  return chatHistory.filter(message => message.chatId === chatId);
+};
+
+// Добавление нового сообщения в историю
+export const addChatHistoryMessage = (message: ChatHistory) => {
+  chatHistory.push(message);
+};
+
+// Получение названия группового чата
+export const getGroupChatTitle = (chatId: number) => {
+  const chat = groupChats.find(c => c.id === chatId);
+  return chat ? chat.title : `Чат ${chatId}`;
+};
+
+// Инициализация тестовых данных
+export const initializeTestData = () => {
+  // Импортируем генератор тестовых данных
+  import('./testDataGenerator').then(generator => {
+    const { users, groupChats, collections, transactions, chatHistory } = generator.generateAllTestData();
+    
+    // Устанавливаем сгенерированные данные
+    setUsers(users);
+    setGroupChats(groupChats);
+    setCollections(collections);
+    setTransactions(transactions);
+    setChatHistory(chatHistory);
+    
+    console.log('Тестовые данные успешно инициализированы.');
+    console.log(`Пользователей: ${users.length}`);
+    console.log(`Групповых чатов: ${groupChats.length}`);
+    console.log(`Коллекций: ${collections.length}`);
+    console.log(`Транзакций: ${transactions.length}`);
+    console.log(`Сообщений в истории: ${chatHistory.length}`);
+  });
 };

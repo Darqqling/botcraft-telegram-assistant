@@ -1,4 +1,3 @@
-
 export type AdminRole = 'super_admin' | 'moderator' | 'support';
 
 export interface Admin {
@@ -33,11 +32,29 @@ export interface BotSettings {
   };
 }
 
+// Типы для чатов и истории сообщений
+export interface GroupChat {
+  id: number;
+  title: string;
+  memberCount?: number;
+  isActive?: boolean;
+  createdAt?: number;
+}
+
+export interface ChatHistory {
+  id: string;
+  chatId: number;
+  userId?: number;
+  messageText: string;
+  isFromUser: boolean;
+  timestamp: number;
+}
+
 export interface ChatStats {
   chatId: number;
-  title?: string;
-  membersCount?: number;
+  messageCount: number;
+  commandCount: number;
+  userCount: number;
   collectionsCreated: number;
-  lastActivity?: number;
-  isActive: boolean;
+  lastActivity: number;
 }

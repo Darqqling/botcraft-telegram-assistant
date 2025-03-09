@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { 
@@ -35,7 +34,6 @@ const Dashboard = () => {
   const [processingMessages, setProcessingMessages] = useState(false);
 
   useEffect(() => {
-    // Проверяем авторизацию
     const token = localStorage.getItem('telegram_bot_token');
     const botInfoStr = localStorage.getItem('telegram_bot_info');
     
@@ -47,11 +45,9 @@ const Dashboard = () => {
 
     setBotInfo(JSON.parse(botInfoStr));
     
-    // Загружаем данные
     loadUpdates();
     loadLocalData();
     
-    // Устанавливаем интервал для периодического обновления
     const updateInterval = setInterval(loadUpdates, 30000);
     const processInterval = setInterval(processNewMessages, 15000);
     
@@ -74,7 +70,7 @@ const Dashboard = () => {
       
       setLoading(true);
       const data = await getUpdates(token);
-      setUpdates(data.slice(-10).reverse()); // Берем последние 10 сообщений и разворачиваем их
+      setUpdates(data.slice(-10).reverse());
     } catch (error) {
       console.error("Ошибка загрузки обновлений:", error);
       toast.error("Не удалось загрузить последние сообщения");
@@ -92,22 +88,18 @@ const Dashboard = () => {
       
       setProcessingMessages(true);
       
-      // Получаем новые сообщения
       const data = await getUpdates(token);
       
-      // Обрабатываем только сообщения с командами
       for (const update of data) {
         if (update.message?.text && typeof update.message.text === 'string' && update.message.text.startsWith('/')) {
           const response = await processCommand(token, update.message);
           
           if (response) {
-            // Отправляем ответ пользователю
             await sendMessage(token, update.message.chat.id, response);
           }
         }
       }
       
-      // Обновляем локальные данные
       loadLocalData();
     } catch (error) {
       console.error("Ошибка обработки сообщений:", error);
@@ -141,13 +133,11 @@ const Dashboard = () => {
     navigate('/');
   };
 
-  // Форматирование даты и времени
   const formatDateTime = (timestamp: number) => {
     const date = new Date(timestamp * 1000);
     return date.toLocaleString();
   };
 
-  // Получить статус сбора в виде текста
   const getCollectionStatus = (status: string) => {
     switch (status) {
       case 'pending': return 'Ожидает';
@@ -158,7 +148,6 @@ const Dashboard = () => {
     }
   };
 
-  // Получить имя пользователя по ID
   const getUserName = (userId: number) => {
     const user = users.find(u => u.id === userId);
     return user ? `${user.firstName} ${user.lastName || ''}`.trim() : `Пользователь ${userId}`;
@@ -166,7 +155,6 @@ const Dashboard = () => {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Хедер */}
       <header className="bg-white shadow-sm">
         <div className="container mx-auto px-4 py-4 flex justify-between items-center">
           <div className="flex items-center gap-2">
@@ -175,19 +163,27 @@ const Dashboard = () => {
               {botInfo ? `@${botInfo.username}` : 'Telegram Bot'}
             </h1>
           </div>
-          <Button 
-            variant="ghost" 
-            className="text-red-500 hover:text-red-700 hover:bg-red-50"
-            onClick={handleLogout}
-          >
-            <LogOut className="mr-2 h-4 w-4" />
-            Выйти
-          </Button>
+          <div className="flex gap-2">
+            <Button 
+              variant="outline"
+              onClick={() => navigate('/admin')}
+            >
+              <Settings className="mr-2 h-4 w-4" />
+              Админка
+            </Button>
+            <Button 
+              variant="ghost" 
+              className="text-red-500 hover:text-red-700 hover:bg-red-50"
+              onClick={handleLogout}
+            >
+              <LogOut className="mr-2 h-4 w-4" />
+              Выйти
+            </Button>
+          </div>
         </div>
       </header>
 
       <div className="container mx-auto px-4 py-8">
-        {/* Вкладки интерфейса */}
         <Tabs defaultValue="messages" className="space-y-6">
           <TabsList className="w-full flex justify-start mb-4">
             <TabsTrigger value="messages" className="flex items-center gap-2">
@@ -208,7 +204,6 @@ const Dashboard = () => {
             </TabsTrigger>
           </TabsList>
 
-          {/* Вкладка сообщений */}
           <TabsContent value="messages">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
               <Card>
@@ -229,7 +224,6 @@ const Dashboard = () => {
                 </CardContent>
               </Card>
               
-              {/* Отправка сообщения */}
               <Card className="md:col-span-2">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
@@ -270,7 +264,6 @@ const Dashboard = () => {
               </Card>
             </div>
 
-            {/* Последние сообщения */}
             <Card>
               <CardHeader className="flex flex-row items-center justify-between">
                 <CardTitle className="flex items-center gap-2">
@@ -325,7 +318,6 @@ const Dashboard = () => {
             </Card>
           </TabsContent>
 
-          {/* Вкладка сборов */}
           <TabsContent value="collections">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between">
@@ -406,7 +398,6 @@ const Dashboard = () => {
             </Card>
           </TabsContent>
 
-          {/* Вкладка пользователей */}
           <TabsContent value="users">
             <Card>
               <CardHeader>
@@ -438,7 +429,6 @@ const Dashboard = () => {
             </Card>
           </TabsContent>
 
-          {/* Вкладка транзакций */}
           <TabsContent value="transactions">
             <Card>
               <CardHeader>
