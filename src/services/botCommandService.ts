@@ -17,7 +17,7 @@ export {
 
 // Re-export all command handlers from their respective modules
 export * from './commands/collectionCreationCommands';
-export * from './commands/participationCommands';
+export * from './commands/participation'; // Changed from participationCommands to participation
 export * from './commands/organizerCommands';
 export * from './commands/statusCommands';
 export * from './commands/giftOptionCommands';
