@@ -1,4 +1,6 @@
+
 import { Collection, User, Transaction } from "@/types/collectionTypes";
+import { ChatHistory } from "@/types/adminTypes";
 
 // Ключи для localStorage
 const COLLECTIONS_KEY = 'telegram_bot_collections';
@@ -163,20 +165,20 @@ export const getGroupChatTitle = (chatId: number) => {
 export const initializeTestData = () => {
   // Импортируем генератор тестовых данных
   import('./testDataGenerator').then(generator => {
-    const { users, groupChats, collections, transactions, chatHistory } = generator.generateAllTestData();
+    const { users, groupChats: testGroupChats, collections, transactions, chatHistory: testChatHistory } = generator.generateAllTestData();
     
     // Устанавливаем сгенерированные данные
-    setUsers(users);
-    setGroupChats(groupChats);
-    setCollections(collections);
-    setTransactions(transactions);
-    setChatHistory(chatHistory);
+    saveUsers(users);
+    setGroupChats(testGroupChats);
+    saveCollections(collections);
+    saveTransactions(transactions);
+    setChatHistory(testChatHistory);
     
     console.log('Тестовые данные успешно инициализированы.');
     console.log(`Пользователей: ${users.length}`);
-    console.log(`Групповых чатов: ${groupChats.length}`);
+    console.log(`Групповых чатов: ${testGroupChats.length}`);
     console.log(`Коллекций: ${collections.length}`);
     console.log(`Транзакций: ${transactions.length}`);
-    console.log(`Сообщений в истории: ${chatHistory.length}`);
+    console.log(`Сообщений в истории: ${testChatHistory.length}`);
   });
 };

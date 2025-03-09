@@ -1,3 +1,4 @@
+
 export type AdminRole = 'super_admin' | 'moderator' | 'support';
 
 export interface Admin {
@@ -57,4 +58,5 @@ export interface ChatStats {
   userCount: number;
   collectionsCreated: number;
   lastActivity: number;
+  isActive: boolean; // Added this property to fix the TS error
 }

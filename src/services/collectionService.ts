@@ -127,7 +127,7 @@ export const addPayment = async (
     await notifyTargetReached(token, collection);
   }
   
-  // Если есть групповой чат, отправляем уведомление
+  // Если есть групп��вой чат, отправляем уведомление
   if (collection.groupChatId) {
     const user = getUserById(userId);
     const userName = user ? `${user.firstName} ${user.lastName || ''}`.trim() : `Участник ${userId}`;
@@ -456,7 +456,8 @@ export const ensureUserExists = (
       firstName,
       lastName,
       username,
-      chatId
+      chatId,
+      createdAt: Date.now()
     };
     saveUser(user);
   }
