@@ -1,6 +1,6 @@
 
 import { addPayment, notifyPaymentSuccess, ensureUserExists } from '../collectionService';
-import { getCollectionById, getUserById } from '../storageService';
+import { getCollectionById, getUserById, saveCollection } from '../storageService';
 import { sendMessage } from '../telegramService';
 
 // Обработка команды присоединения к сбору
@@ -110,17 +110,51 @@ export const handlePay = async (
     // Создаем пользователя, если он еще не существует
     ensureUserExists(userId, firstName, chatId, username, lastName);
     
-    // Добавляем платеж
-    const success = await addPayment(token, collectionId, userId, amount);
-    
-    if (!success) {
-      return 'Произошла ошибка при обработке платежа. Пожалуйста, попробуйте еще раз.';
+    // Для тестирования - имитируем сценарий с прямой передачей денег организатору
+    if (amount <= 1000) {
+      // Электронный платеж для небольших сумм - автоматическое подтверждение
+      const success = await addPayment(token, collectionId, userId, amount);
+      
+      if (!success) {
+        return 'Произошла ошибка при обработке платежа. Пожалуйста, попробуйте еще раз.';
+      }
+      
+      // Отправляем уведомление об успешной оплате
+      await notifyPaymentSuccess(token, collectionId, userId);
+      
+      return `Платеж на сумму ${amount} руб. успешно зарегистрирован.\nСпасибо за участие в сборе "${collection.title}"!`;
+    } else {
+      // Ручная передача денег организатору для крупных сумм
+      // Обновляем информацию об участнике - отмечаем предполагаемый взнос
+      const participantIndex = collection.participants.findIndex(p => p.userId === userId);
+      
+      if (participantIndex !== -1) {
+        collection.participants[participantIndex].contribution = amount;
+        saveCollection(collection);
+      }
+      
+      // Отправляем запрос организатору на подтверждение платежа
+      const organizerId = collection.organizerId;
+      const organizer = getUserById(organizerId);
+      
+      if (organizer) {
+        try {
+          const message = `
+Пользователь ${firstName} ${lastName || ''} (ID: ${userId}) сообщает, что передал вам ${amount} руб. для сбора "${collection.title}".
+
+Для подтверждения платежа используйте команду:
+/confirm_payment ${collectionId} ${userId}
+
+Если платеж не был получен, проигнорируйте это сообщение.
+          `;
+          await sendMessage(token, organizer.chatId, message);
+        } catch (error) {
+          console.error(`Ошибка при отправке уведомления организатору:`, error);
+        }
+      }
+      
+      return `Сообщение о передаче ${amount} руб. отправлено организатору сбора "${collection.title}".\nПосле подтверждения организатором ваш взнос будет учтен.`;
     }
-    
-    // Отправляем уведомление об успешной оплате
-    await notifyPaymentSuccess(token, collectionId, userId);
-    
-    return `Платеж на сумму ${amount} руб. успешно зарегистрирован.\nСпасибо за участие в сборе "${collection.title}"!`;
   } catch (error) {
     console.error('Ошибка при обработке платежа:', error);
     return 'Произошла ошибка при обработке платежа. Пожалуйста, попробуйте еще раз.';

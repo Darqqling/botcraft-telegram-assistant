@@ -1,3 +1,4 @@
+
 import { ensureUserExists } from '../collectionService';
 import { getCollectionById, getUserById, addChatHistoryMessage } from '../storageService';
 import { sendMessage } from '../telegramService';
@@ -38,6 +39,7 @@ export const processCommand = async (
   const firstName = message?.from?.first_name || 'User';
   const lastName = message?.from?.last_name;
   const username = message?.from?.username;
+  const isGroupChat = message?.chat?.type === 'group' || message?.chat?.type === 'supergroup';
   
   if (!userId || !chatId) {
     return null;
@@ -61,7 +63,8 @@ export const processCommand = async (
     handleConfirmGift,
     handleCancel,
     handleUpdateAmount,
-    handleSendReminders 
+    handleSendReminders,
+    handleConfirmPayment 
   } = await import('./organizerCommands');
   
   const { 
@@ -78,7 +81,19 @@ export const processCommand = async (
   let response: string | null = null;
   
   if (text.startsWith('/start')) {
-    response = `
+    if (isGroupChat) {
+      response = `
+Привет! Я бот для организации групповых сборов на подарки. 💝
+
+В групповом чате я могу помочь организовать сбор средств на подарок:
+- Создать новый сбор: /group_new_collection Название|Описание|Сумма|ID получателя|Срок(дни)
+- Присоединиться к сбору: /join_collection ID_сбора
+- Проверить статус: /collection_status ID_сбора
+
+Для начала, создайте новый сбор с помощью команды /group_new_collection!
+`;
+    } else {
+      response = `
 Привет, ${firstName}! 👋
 
 Я бот для организации групповых сборов на подарки. Вот что я умею:
@@ -97,6 +112,7 @@ export const processCommand = async (
 
 Попробуйте создать свой первый сбор с помощью команды /new_collection!
 `;
+    }
   } else if (text.startsWith('/new_collection')) {
     response = await handleNewCollection(token, userId, chatId, firstName, text, lastName, username);
   } else if (text.startsWith('/group_new_collection')) {
@@ -105,6 +121,8 @@ export const processCommand = async (
     response = await handleJoinCollection(token, userId, chatId, firstName, text, lastName, username);
   } else if (text.startsWith('/pay')) {
     response = await handlePay(token, userId, chatId, firstName, text, lastName, username);
+  } else if (text.startsWith('/confirm_payment')) {
+    response = await handleConfirmPayment(token, userId, chatId, firstName, text, lastName, username);
   } else if (text.startsWith('/confirm_gift')) {
     response = await handleConfirmGift(token, userId, chatId, firstName, text, lastName, username);
   } else if (text.startsWith('/cancel')) {
@@ -137,6 +155,9 @@ export const processCommand = async (
 /pay ID_сбора сумма
 - Регистрирует ваш взнос в сбор
 
+/confirm_payment ID_сбора ID_пользователя
+- Подтверждает платеж пользователя (только для организатора)
+
 /add_gift_option ID_сбора|Название|Описание
 - Добавить вариант подарка для голосования
 
@@ -166,6 +187,7 @@ export const processCommand = async (
   // Log bot response to chat history
   if (response) {
     logChatMessage(chatId, undefined, response, false);
+    console.log(`[Bot Response to ${firstName} (${userId}) in chat ${chatId}]: ${response.substring(0, 100)}...`);
   }
   
   return response;

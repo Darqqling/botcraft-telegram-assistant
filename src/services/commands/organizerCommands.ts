@@ -1,6 +1,5 @@
-
 import { updateCollectionStatus, ensureUserExists, updateCollectionTargetAmount } from '../collectionService';
-import { getCollectionById, getUserById } from '../storageService';
+import { getCollectionById, getUserById, saveCollection } from '../storageService';
 import { sendMessage } from '../telegramService';
 import { sendGroupMessage } from './baseCommandHandler';
 
@@ -94,7 +93,7 @@ export const handleCancel = async (
   }
 };
 
-// Обработка команды корректировки суммы сбора
+// Обработка команды корректировки су��мы сбора
 export const handleUpdateAmount = async (
   token: string,
   userId: number,
@@ -245,5 +244,100 @@ export const handleSendReminders = async (
   } catch (error) {
     console.error('Ошибка при отправке напоминаний:', error);
     return 'Произошла ошибка при отправке напоминаний. Пожалуйста, попробуйте еще раз.';
+  }
+};
+
+// Новая функция для подтверждения платежа организатором
+export const handleConfirmPayment = async (
+  token: string,
+  userId: number,
+  chatId: number,
+  firstName: string,
+  text: string,
+  lastName?: string,
+  username?: string
+): Promise<string> => {
+  try {
+    // Формат: /confirm_payment collection_id user_id
+    const parts = text.replace('/confirm_payment', '').trim().split(' ');
+    
+    if (parts.length < 2) {
+      return 'Ошибка: неверный формат команды. Используйте:\n/confirm_payment ID_сбора ID_пользователя';
+    }
+    
+    const collectionId = parts[0].trim();
+    const payingUserId = parseInt(parts[1].trim());
+    
+    if (isNaN(payingUserId)) {
+      return 'Ошибка: ID пользователя должен быть числом.';
+    }
+    
+    const collection = getCollectionById(collectionId);
+    
+    if (!collection) {
+      return 'Ошибка: сбор с указанным ID не найден.';
+    }
+    
+    // Только организатор может подтверждать платежи
+    if (collection.organizerId !== userId) {
+      return 'Ошибка: только организатор сбора может подтверждать платежи.';
+    }
+    
+    if (collection.status !== 'active') {
+      return `Ошибка: сбор "${collection.title}" не активен.`;
+    }
+    
+    // Проверяем, что пользователь является участником сбора
+    const participantIndex = collection.participants.findIndex(p => p.userId === payingUserId);
+    
+    if (participantIndex === -1) {
+      return `Ошибка: пользователь с ID ${payingUserId} не является участником сбора.`;
+    }
+    
+    // Обновляем статус оплаты участника
+    collection.participants[participantIndex].hasPaid = true;
+    
+    // Обновляем информацию о коллекции
+    saveCollection(collection);
+    
+    // Отправляем уведомление пользователю, чей платеж подтвержден
+    const payingUser = getUserById(payingUserId);
+    if (payingUser) {
+      try {
+        const message = `
+Ваш платеж для сбора "${collection.title}" был подтвержден организатором!
+
+Спасибо за участие в сборе!
+        `;
+        await sendMessage(token, payingUser.chatId, message);
+      } catch (error) {
+        console.error(`Ошибка при отправке уведомления пользователю ${payingUserId}:`, error);
+      }
+    }
+    
+    // Отправляем уведомление в групповой чат, если он есть
+    if (collection.groupChatId) {
+      const payingUser = getUserById(payingUserId);
+      const payingUserName = payingUser 
+        ? `${payingUser.firstName} ${payingUser.lastName || ''}`.trim() 
+        : `Участник ${payingUserId}`;
+      
+      const message = `
+Организатор подтвердил платеж от ${payingUserName} для сбора "${collection.title}".
+
+Собрано: ${collection.currentAmount} из ${collection.targetAmount} руб.
+      `;
+      
+      try {
+        await sendGroupMessage(token, collection.groupChatId, message);
+      } catch (error) {
+        console.error('Ошибка при отправке уведомления в групповой чат:', error);
+      }
+    }
+    
+    return `Платеж пользователя с ID ${payingUserId} успешно подтвержден.`;
+  } catch (error) {
+    console.error('Ошибка при подтверждении платежа:', error);
+    return 'Произошла ошибка при подтверждении платежа. Пожалуйста, попробуйте еще раз.';
   }
 };
