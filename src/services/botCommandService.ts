@@ -8,5 +8,6 @@ export * from './commands/statusCommands';
 export * from './commands/giftOptionCommands';
 
 // Export the main processCommand as the default entry point
-import { processCommand } from './commands/baseCommandHandler';
+import { processCommand, processCallbackQuery } from './commands/baseCommandHandler';
 export default processCommand;
+export { processCallbackQuery };
