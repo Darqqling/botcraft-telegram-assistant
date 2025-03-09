@@ -1,17 +1,21 @@
 
-import { Collection, User, Transaction } from "@/types/collectionTypes";
+import { Collection, User, Transaction, ActivityLogEntry } from "@/types/collectionTypes";
 import { ChatHistory } from "@/types/adminTypes";
 
 // Ключи для localStorage
 const COLLECTIONS_KEY = 'telegram_bot_collections';
 const USERS_KEY = 'telegram_bot_users';
 const TRANSACTIONS_KEY = 'telegram_bot_transactions';
+const LOG_ENTRIES_KEY = 'telegram_bot_log_entries';
 
 // Хранилище для групповых чатов
 let groupChats: { id: number, title: string }[] = [];
 
 // Хранилище для истории сообщений
 let chatHistory: ChatHistory[] = [];
+
+// Хранилище для логов активности
+let logEntries: ActivityLogEntry[] = [];
 
 // Получение коллекций
 export const getCollections = (): Collection[] => {
@@ -131,6 +135,34 @@ export const saveTransaction = (transaction: Transaction): void => {
   const transactions = getTransactions();
   transactions.push(transaction);
   saveTransactions(transactions);
+};
+
+// Получение логов активности
+export const getLogEntries = (): ActivityLogEntry[] => {
+  try {
+    const entries = localStorage.getItem(LOG_ENTRIES_KEY);
+    return entries ? JSON.parse(entries) : logEntries;
+  } catch (error) {
+    console.error('Ошибка при получении логов активности:', error);
+    return logEntries;
+  }
+};
+
+// Сохранение логов активности
+export const saveLogEntries = (entries: ActivityLogEntry[]): void => {
+  try {
+    localStorage.setItem(LOG_ENTRIES_KEY, JSON.stringify(entries));
+    logEntries = entries;
+  } catch (error) {
+    console.error('Ошибка при сохранении логов активности:', error);
+  }
+};
+
+// Добавление записи в логи активности
+export const addLogEntry = (entry: ActivityLogEntry): void => {
+  const entries = getLogEntries();
+  entries.push(entry);
+  saveLogEntries(entries);
 };
 
 // Экспорт функций для работы с групповыми чатами

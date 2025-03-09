@@ -1,300 +1,388 @@
-
-import { addGiftOption, voteForGiftOption, ensureUserExists } from '../collectionService';
-import { getCollectionById, getUserById } from '../storageService';
-import { sendGroupMessage, sendMessage } from './baseCommandHandler';
-import { InlineKeyboardMarkup } from '../telegramService';
+import { v4 as uuidv4 } from 'uuid';
+import { Collection, GiftOption } from '@/types/collectionTypes';
+import { sendMessage } from './baseCommandHandler';
+import { getCollectionById, saveCollection } from '../storageService';
 
 // Обработка команды добавления варианта подарка
 export const handleAddGiftOption = async (
-  token: string,
-  userId: number,
   chatId: number,
-  firstName: string,
-  text: string,
-  lastName?: string,
-  username?: string
-): Promise<string> => {
+  userId: number,
+  botToken: string,
+  args: string
+): Promise<boolean> => {
   try {
-    // Формат: /add_gift_option collection_id|Title|Description
-    const parts = text.replace('/add_gift_option', '').trim().split('|');
+    // Разбираем аргументы команды
+    const [collectionId, title, description] = args.split('|').map(arg => arg.trim());
     
-    if (parts.length < 2) {
-      return 'Ошибка: неверный формат команды. Используйте:\n/add_gift_option ID_сбора|Название|Описание';
+    if (!collectionId || !title) {
+      await sendMessage(
+        botToken,
+        chatId,
+        'Ошибка: Неверный формат команды. Используйте:\n/add_gift_option [ID сбора]|[Название]|[Описание]'
+      );
+      return false;
     }
     
-    const collectionId = parts[0].trim();
-    const title = parts[1].trim();
-    const description = parts.length > 2 ? parts[2].trim() : '';
-    
+    // Получаем коллекцию по ID
     const collection = getCollectionById(collectionId);
     
     if (!collection) {
-      return 'Ошибка: сбор с указанным ID не найден.';
+      await sendMessage(
+        botToken,
+        chatId,
+        `Ошибка: Сбор с ID ${collectionId} не найден.`
+      );
+      return false;
     }
     
-    // Проверяем, является ли пользователь участником или организатором
-    const isParticipant = collection.participants.some(p => p.userId === userId);
-    const isOrganizer = collection.organizerId === userId;
-    
-    if (!isParticipant && !isOrganizer) {
-      return `Ошибка: вы не являетесь участником сбора "${collection.title}".`;
+    // Проверяем, является ли пользователь организатором сбора
+    if (collection.organizerId !== userId) {
+      await sendMessage(
+        botToken,
+        chatId,
+        'Ошибка: Только организатор сбора может добавлять варианты подарков.'
+      );
+      return false;
     }
     
-    // Создаем пользователя, если он еще не существует
-    ensureUserExists(userId, firstName, chatId, username, lastName);
+    // Проверяем статус коллекции
+    if (collection.status !== 'active') {
+      await sendMessage(
+        botToken,
+        chatId,
+        `Ошибка: Нельзя добавить вариант подарка для сбора со статусом "${collection.status}".`
+      );
+      return false;
+    }
     
-    // Добавляем вариант подарка
-    const giftOption = addGiftOption(collectionId, title, description);
+    // Создаем новый вариант подарка
+    const newGiftOption: GiftOption = {
+      id: uuidv4(),
+      collectionId: collection.id,
+      title,
+      description,
+      votes: 0
+    };
     
-    // Отправляем уведомление в групповой чат, если он есть
+    // Добавляем вариант подарка в коллекцию
+    collection.giftOptions.push(newGiftOption);
+    collection.updatedAt = Date.now();
+    
+    // Сохраняем обновленную коллекцию
+    saveCollection(collection);
+    
+    // Отправляем сообщение об успешном добавлении
+    await sendMessage(
+      botToken,
+      chatId,
+      `Вариант подарка "${title}" успешно добавлен в сбор "${collection.title}".\n\nУчастники теперь могут голосовать за этот вариант с помощью команды:\n/vote ${collection.id} ${newGiftOption.id}`
+    );
+    
+    // Если сбор связан с групповым чатом, отправляем уведомление и туда
     if (collection.groupChatId) {
-      const inlineKeyboard: InlineKeyboardMarkup = {
-        inline_keyboard: [
-          [
-            { text: "Голосовать", callback_data: `vote:${collectionId}:${giftOption.id}` }
-          ]
-        ]
-      };
-      
-      const message = `
-Добавлен новый вариант подарка для сбора "${collection.title}":
-
-"${title}"
-${description ? `${description}\n` : ''}
-
-Голосуйте за этот вариант:
-      `;
-      
-      try {
-        await sendMessage(token, collection.groupChatId, message, { replyMarkup: inlineKeyboard });
-      } catch (error) {
-        console.error('Ошибка при отправке уведомления в групповой чат:', error);
-      }
+      await sendMessage(
+        botToken,
+        collection.groupChatId,
+        `В сборе "${collection.title}" добавлен новый вариант подарка: "${title}".\n\nЧтобы проголосовать за этот вариант, используйте команду:\n/vote ${collection.id} ${newGiftOption.id}`
+      );
     }
     
-    return `Вариант подарка "${title}" успешно добавлен к сбору "${collection.title}".`;
+    return true;
   } catch (error) {
     console.error('Ошибка при добавлении варианта подарка:', error);
-    return 'Произошла ошибка при добавлении варианта подарка. Пожалуйста, попробуйте еще раз.';
+    await sendMessage(
+      botToken,
+      chatId,
+      'Произошла ошибка при добавлении варианта подарка. Пожалуйста, попробуйте позже.'
+    );
+    return false;
   }
 };
 
 // Обработка команды голосования за вариант подарка
 export const handleVote = async (
-  token: string,
-  userId: number,
   chatId: number,
-  firstName: string,
-  text: string,
-  lastName?: string,
-  username?: string
-): Promise<string> => {
+  userId: number,
+  botToken: string,
+  args: string
+): Promise<boolean> => {
   try {
-    // Формат: /vote collection_id option_id
-    const parts = text.replace('/vote', '').trim().split(' ');
+    // Разбираем аргументы команды
+    const [collectionId, giftOptionId] = args.split(' ').map(arg => arg.trim());
     
-    if (parts.length < 2) {
-      return 'Ошибка: неверный формат команды. Используйте:\n/vote ID_сбора ID_варианта';
+    if (!collectionId || !giftOptionId) {
+      await sendMessage(
+        botToken,
+        chatId,
+        'Ошибка: Неверный формат команды. Используйте:\n/vote [ID сбора] [ID варианта подарка]'
+      );
+      return false;
     }
     
-    const collectionId = parts[0].trim();
-    const optionId = parts[1].trim();
-    
+    // Получаем коллекцию по ID
     const collection = getCollectionById(collectionId);
     
     if (!collection) {
-      return 'Ошибка: сбор с указанным ID не найден.';
+      await sendMessage(
+        botToken,
+        chatId,
+        `Ошибка: Сбор с ID ${collectionId} не найден.`
+      );
+      return false;
     }
     
-    // Проверяем, является ли пользователь участником
-    const isParticipant = collection.participants.some(p => p.userId === userId);
+    // Проверяем, является ли пользователь участником сбора
+    const participant = collection.participants.find(p => p.userId === userId);
     
-    if (!isParticipant) {
-      return `Ошибка: вы не являетесь участником сбора "${collection.title}".`;
+    if (!participant) {
+      await sendMessage(
+        botToken,
+        chatId,
+        `Ошибка: Вы не являетесь участником сбора "${collection.title}". Сначала присоединитесь к сбору с помощью команды:\n/join_collection ${collectionId}`
+      );
+      return false;
     }
     
-    // Проверяем, существует ли такой вариант
-    if (!collection.giftOptions || !collection.giftOptions.find(opt => opt.id === optionId)) {
-      return 'Ошибка: указанный вариант подарка не найден.';
+    // Проверяем статус коллекции
+    if (collection.status !== 'active') {
+      await sendMessage(
+        botToken,
+        chatId,
+        `Ошибка: Нельзя голосовать в сборе со статусом "${collection.status}".`
+      );
+      return false;
     }
     
-    // Создаем пользователя, если он еще не существует
-    ensureUserExists(userId, firstName, chatId, username, lastName);
+    // Проверяем, существует ли вариант подарка
+    const giftOption = collection.giftOptions.find(option => option.id === giftOptionId);
     
-    // Голосуем за вариант
-    voteForGiftOption(collectionId, userId, optionId);
+    if (!giftOption) {
+      await sendMessage(
+        botToken,
+        chatId,
+        `Ошибка: Вариант подарка с ID ${giftOptionId} не найден в этом сборе.`
+      );
+      return false;
+    }
     
-    // Находим вариант для вывода его названия
-    const option = collection.giftOptions.find(opt => opt.id === optionId);
-    
-    // Отправляем уведомление в групповой чат, если он есть
-    if (collection.groupChatId) {
-      const message = `${firstName} ${lastName || ''} проголосовал(а) за вариант "${option?.title}".`;
-      
-      try {
-        await sendMessage(token, collection.groupChatId, message);
-      } catch (error) {
-        console.error('Ошибка при отправке уведомления в групповой чат:', error);
+    // Если пользователь уже голосовал за другой вариант, снимаем его голос
+    if (participant.vote && participant.vote !== giftOptionId) {
+      const previousOption = collection.giftOptions.find(option => option.id === participant.vote);
+      if (previousOption && previousOption.votes > 0) {
+        previousOption.votes--;
       }
     }
     
-    // Показываем другие варианты и количество голосов
-    let voteResultMessage = `Ваш голос за вариант "${option?.title}" в сборе "${collection.title}" учтен.\n\nРезультаты голосования:`;
-    
-    if (collection.giftOptions) {
-      collection.giftOptions.forEach(opt => {
-        voteResultMessage += `\n- "${opt.title}": ${opt.votes} голос(ов)`;
-      });
+    // Если пользователь голосует за тот же вариант, снимаем голос
+    if (participant.vote === giftOptionId) {
+      participant.vote = undefined;
+      giftOption.votes--;
+      
+      await sendMessage(
+        botToken,
+        chatId,
+        `Вы отменили свой голос за вариант "${giftOption.title}" в сборе "${collection.title}".`
+      );
+    } else {
+      // Иначе голосуем за новый вариант
+      participant.vote = giftOptionId;
+      giftOption.votes++;
+      
+      await sendMessage(
+        botToken,
+        chatId,
+        `Вы успешно проголосовали за вариант "${giftOption.title}" в сборе "${collection.title}".\n\nТекущее количество голосов: ${giftOption.votes}`
+      );
     }
     
-    return voteResultMessage;
+    // Обновляем время последнего изменения коллекции
+    collection.updatedAt = Date.now();
+    
+    // Сохраняем обновленную коллекцию
+    saveCollection(collection);
+    
+    return true;
   } catch (error) {
-    console.error('Ошибка при голосовании:', error);
-    return 'Произошла ошибка при голосовании. Пожалуйста, попробуйте еще раз.';
+    console.error('Ошибка при голосовании за вариант подарка:', error);
+    await sendMessage(
+      botToken,
+      chatId,
+      'Произошла ошибка при голосовании. Пожалуйста, попробуйте позже.'
+    );
+    return false;
   }
 };
 
-// Обработка callback'а голосования
-export const handleVoteCallback = async (
-  token: string,
-  userId: number,
+// Получение списка вариантов подарков для сбора
+export const handleListGiftOptions = async (
   chatId: number,
-  firstName: string,
-  parts: string[],
-  lastName?: string,
-  username?: string
-): Promise<string> => {
+  userId: number,
+  botToken: string,
+  collectionId: string
+): Promise<boolean> => {
   try {
-    // Формат: vote:collection_id:option_id
-    if (parts.length < 3) {
-      return 'Ошибка: неверный формат данных для голосования.';
-    }
-    
-    const collectionId = parts[1];
-    const optionId = parts[2];
-    
+    // Получаем коллекцию по ID
     const collection = getCollectionById(collectionId);
     
     if (!collection) {
-      return 'Ошибка: сбор с указанным ID не найден.';
+      await sendMessage(
+        botToken,
+        chatId,
+        `Ошибка: Сбор с ID ${collectionId} не найден.`
+      );
+      return false;
     }
     
-    // Проверяем, является ли пользователь участником
-    const isParticipant = collection.participants.some(p => p.userId === userId);
-    
-    if (!isParticipant) {
-      // Предлагаем присоединиться к сбору
-      const joinKeyboard: InlineKeyboardMarkup = {
-        inline_keyboard: [
-          [
-            { text: "Присоединиться к сбору", callback_data: `join:${collectionId}` }
-          ]
-        ]
-      };
-      
-      await sendMessage(token, chatId, `Вы не являетесь участником сбора "${collection.title}". Присоединитесь, чтобы голосовать:`, 
-        { replyMarkup: joinKeyboard });
-      
-      return '';
+    // Проверяем, есть ли варианты подарков
+    if (!collection.giftOptions || collection.giftOptions.length === 0) {
+      await sendMessage(
+        botToken,
+        chatId,
+        `В сборе "${collection.title}" пока нет вариантов подарков.\n\nЕсли вы организатор, вы можете добавить вариант с помощью команды:\n/add_gift_option ${collectionId}|Название|Описание`
+      );
+      return true;
     }
     
-    // Проверяем, существует ли такой вариант
-    if (!collection.giftOptions || !collection.giftOptions.find(opt => opt.id === optionId)) {
-      return 'Ошибка: указанный вариант подарка не найден.';
-    }
+    // Формируем сообщение со списком вариантов
+    let message = `Варианты подарков для сбора "${collection.title}":\n\n`;
     
-    // Создаем пользователя, если он еще не существует
-    ensureUserExists(userId, firstName, chatId, username, lastName);
-    
-    // Голосуем за вариант
-    voteForGiftOption(collectionId, userId, optionId);
-    
-    // Находим вариант для вывода его названия
-    const option = collection.giftOptions.find(opt => opt.id === optionId);
-    
-    // Отправляем уведомление в групповой чат, если он есть
-    if (collection.groupChatId) {
-      const message = `${firstName} ${lastName || ''} проголосовал(а) за вариант "${option?.title}".`;
-      
-      try {
-        await sendMessage(token, collection.groupChatId, message);
-      } catch (error) {
-        console.error('Ошибка при отправке уведомления в групповой чат:', error);
+    collection.giftOptions.forEach((option, index) => {
+      message += `${index + 1}. "${option.title}" - ${option.votes} голосов\n`;
+      if (option.description) {
+        message += `   ${option.description}\n`;
       }
-    }
+      message += `   ID: ${option.id}\n\n`;
+    });
     
-    // Показываем другие варианты и количество голосов с кнопками для голосования
-    let voteResultMessage = `Ваш голос за вариант "${option?.title}" в сборе "${collection.title}" учтен.\n\nРезультаты голосования:`;
+    // Добавляем инструкцию по голосованию
+    message += `Чтобы проголосовать за вариант, используйте команду:\n/vote ${collectionId} [ID варианта]`;
     
-    const voteButtons: InlineKeyboardMarkup = {
-      inline_keyboard: []
-    };
+    // Отправляем сообщение
+    await sendMessage(
+      botToken,
+      chatId,
+      message
+    );
     
-    if (collection.giftOptions) {
-      collection.giftOptions.forEach(opt => {
-        voteResultMessage += `\n- "${opt.title}": ${opt.votes} голос(ов)`;
-        
-        // Добавляем кнопку для каждого варианта, кроме того, за который уже проголосовали
-        if (opt.id !== optionId) {
-          voteButtons.inline_keyboard.push([
-            { text: `Голосовать за "${opt.title}"`, callback_data: `vote:${collectionId}:${opt.id}` }
-          ]);
-        }
-      });
-    }
-    
-    // Добавляем кнопку для возврата к статусу сбора
-    voteButtons.inline_keyboard.push([
-      { text: "Статус сбора", callback_data: `status:${collectionId}` }
-    ]);
-    
-    await sendMessage(token, chatId, voteResultMessage, { replyMarkup: voteButtons });
-    
-    return '';
+    return true;
   } catch (error) {
-    console.error('Ошибка при обработке голосования:', error);
-    return 'Произошла ошибка при голосовании. Пожалуйста, попробуйте еще раз.';
+    console.error('Ошибка при получении списка вариантов подарков:', error);
+    await sendMessage(
+      botToken,
+      chatId,
+      'Произошла ошибка при получении списка вариантов подарков. Пожалуйста, попробуйте позже.'
+    );
+    return false;
   }
 };
 
-// Обработка callback'а добавления варианта подарка
-export const handleAddGiftOptionCallback = async (
-  token: string,
-  userId: number,
+// Удаление варианта подарка (только для организатора)
+export const handleRemoveGiftOption = async (
   chatId: number,
-  firstName: string,
-  parts: string[],
-  lastName?: string,
-  username?: string
-): Promise<string> => {
+  userId: number,
+  botToken: string,
+  args: string
+): Promise<boolean> => {
   try {
-    // Формат: add_gift:collection_id
-    if (parts.length < 2) {
-      return 'Ошибка: неверный формат данных для добавления варианта.';
+    // Разбираем аргументы команды
+    const [collectionId, giftOptionId] = args.split(' ').map(arg => arg.trim());
+    
+    if (!collectionId || !giftOptionId) {
+      await sendMessage(
+        botToken,
+        chatId,
+        'Ошибка: Неверный формат команды. Используйте:\n/remove_gift_option [ID сбора] [ID варианта подарка]'
+      );
+      return false;
     }
     
-    const collectionId = parts[1];
-    
+    // Получаем коллекцию по ID
     const collection = getCollectionById(collectionId);
     
     if (!collection) {
-      return 'Ошибка: сбор с указанным ID не найден.';
+      await sendMessage(
+        botToken,
+        chatId,
+        `Ошибка: Сбор с ID ${collectionId} не найден.`
+      );
+      return false;
     }
     
-    // Проверяем, является ли пользователь участником или организатором
-    const isParticipant = collection.participants.some(p => p.userId === userId);
-    const isOrganizer = collection.organizerId === userId;
-    
-    if (!isParticipant && !isOrganizer) {
-      return `Ошибка: вы не являетесь участником сбора "${collection.title}".`;
+    // Проверяем, является ли пользователь организатором сбора
+    if (collection.organizerId !== userId) {
+      await sendMessage(
+        botToken,
+        chatId,
+        'Ошибка: Только организатор сбора может удалять варианты подарков.'
+      );
+      return false;
     }
     
-    // Отправляем инструкции по добавлению варианта
-    await sendMessage(token, chatId, `Для добавления варианта подарка к сбору "${collection.title}", отправьте команду:\n\n/add_gift_option ${collectionId}|Название варианта|Описание (опционально)`);
+    // Проверяем статус коллекции
+    if (collection.status !== 'active') {
+      await sendMessage(
+        botToken,
+        chatId,
+        `Ошибка: Нельзя удалить вариант подарка для сбора со статусом "${collection.status}".`
+      );
+      return false;
+    }
     
-    return '';
+    // Проверяем, существует ли вариант подарка
+    const giftOptionIndex = collection.giftOptions.findIndex(option => option.id === giftOptionId);
+    
+    if (giftOptionIndex === -1) {
+      await sendMessage(
+        botToken,
+        chatId,
+        `Ошибка: Вариант подарка с ID ${giftOptionId} не найден в этом сборе.`
+      );
+      return false;
+    }
+    
+    // Получаем название варианта перед удалением
+    const giftOptionTitle = collection.giftOptions[giftOptionIndex].title;
+    
+    // Удаляем вариант подарка
+    collection.giftOptions.splice(giftOptionIndex, 1);
+    
+    // Сбрасываем голоса участников за этот вариант
+    collection.participants.forEach(participant => {
+      if (participant.vote === giftOptionId) {
+        participant.vote = undefined;
+      }
+    });
+    
+    // Обновляем время последнего изменения коллекции
+    collection.updatedAt = Date.now();
+    
+    // Сохраняем обновленную коллекцию
+    saveCollection(collection);
+    
+    // Отправляем сообщение об успешном удалении
+    await sendMessage(
+      botToken,
+      chatId,
+      `Вариант подарка "${giftOptionTitle}" успешно удален из сбора "${collection.title}".`
+    );
+    
+    // Если сбор связан с групповым чатом, отправляем уведомление и туда
+    if (collection.groupChatId) {
+      await sendMessage(
+        botToken,
+        collection.groupChatId,
+        `В сборе "${collection.title}" удален вариант подарка: "${giftOptionTitle}".`
+      );
+    }
+    
+    return true;
   } catch (error) {
-    console.error('Ошибка при обработке запроса на добавление варианта:', error);
-    return 'Произошла ошибка. Пожалуйста, попробуйте еще раз.';
+    console.error('Ошибка при удалении варианта подарка:', error);
+    await sendMessage(
+      botToken,
+      chatId,
+      'Произошла ошибка при удалении варианта подарка. Пожалуйста, попробуйте позже.'
+    );
+    return false;
   }
 };

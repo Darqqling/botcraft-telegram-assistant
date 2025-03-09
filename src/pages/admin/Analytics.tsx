@@ -1,238 +1,226 @@
 
 import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, LineChart, Line, PieChart, Pie, Cell } from 'recharts';
-import { getCollections, getUsers, getTransactions, getLogEntries, getChatHistory } from '@/services/storageService';
-import { Collection, Transaction } from '@/types/collectionTypes';
-import { Activity, BarChart3, CircleUser, DollarSign } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Tooltip, Legend, PieChart, Pie, Cell } from 'recharts';
+import { getCollections, getUsers, getTransactions, getLogEntries } from '@/services/storageService';
+import { getDailyStats, getCollectionStats, getUserStats, getTransactionStats } from '@/services/adminService';
+
+const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8'];
 
 const Analytics = () => {
-  const [collectionsData, setCollectionsData] = useState<Collection[]>([]);
-  const [collectionsByDay, setCollectionsByDay] = useState<any[]>([]);
-  const [statusDistribution, setStatusDistribution] = useState<any[]>([]);
-  const [avgCollectionSize, setAvgCollectionSize] = useState<number>(0);
-  const [activeUsers, setActiveUsers] = useState<number>(0);
+  const [dailyStats, setDailyStats] = useState<any[]>([]);
+  const [collectionStats, setCollectionStats] = useState<any>(null);
+  const [userStats, setUserStats] = useState<any>(null);
+  const [transactionStats, setTransactionStats] = useState<any>(null);
+  const [statusData, setStatusData] = useState<any[]>([]);
   const [recentActivity, setRecentActivity] = useState<any[]>([]);
 
   useEffect(() => {
-    // Загрузка данных
-    const collections = getCollections();
-    const users = getUsers();
-    const transactions = getTransactions();
-    const logs = getLogEntries();
-    const chatHistory = getChatHistory();
-    
-    setCollectionsData(collections);
-    
-    // Расчет средней суммы сбора
-    if (collections.length > 0) {
-      const totalAmount = collections.reduce((acc, curr) => acc + curr.targetAmount, 0);
-      setAvgCollectionSize(Math.round(totalAmount / collections.length));
-    }
-    
-    // Подсчет активных пользователей (вносивших средства за последние 30 дней)
-    const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;
-    const recentTransactions = transactions.filter(t => t.timestamp > thirtyDaysAgo);
-    const uniqueUsers = new Set(recentTransactions.map(t => t.userId));
-    setActiveUsers(uniqueUsers.size);
-    
-    // Построение данных для графика сборов по дням
-    const collectionsByDayMap = new Map();
-    collections.forEach(collection => {
-      const date = new Date(collection.createdAt).toLocaleDateString();
-      if (collectionsByDayMap.has(date)) {
-        collectionsByDayMap.set(date, collectionsByDayMap.get(date) + 1);
-      } else {
-        collectionsByDayMap.set(date, 1);
-      }
-    });
-    
-    const collectionsByDayArray = Array.from(collectionsByDayMap).map(([date, count]) => ({
-      date,
-      count
-    }));
-    
-    setCollectionsByDay(collectionsByDayArray);
-    
-    // Распределение сборов по статусам
-    const statusCounts = collections.reduce((acc: Record<string, number>, collection) => {
-      const status = collection.status;
-      acc[status] = (acc[status] || 0) + 1;
-      return acc;
-    }, {});
-    
-    const statusDistributionArray = Object.entries(statusCounts).map(([status, count]) => ({
-      status,
-      count
-    }));
-    
-    setStatusDistribution(statusDistributionArray);
-    
-    // Последние активности
-    const allActivity = [
-      ...transactions.map(t => ({
-        type: 'transaction',
-        userId: t.userId,
-        timestamp: t.timestamp,
-        amount: t.amount,
-        collectionId: t.collectionId
-      })),
-      ...chatHistory.slice(-50).map(msg => ({
-        type: 'message',
-        userId: msg.userId,
-        timestamp: msg.timestamp,
-        text: msg.messageText,
-        chatId: msg.chatId,
-        isFromUser: msg.isFromUser
-      }))
-    ];
-    
-    allActivity.sort((a, b) => b.timestamp - a.timestamp);
-    
-    const recentActivityData = allActivity.slice(0, 10).map(activity => {
-      const user = users.find(u => u.id === activity.userId);
-      const collection = collections.find(c => c.id === activity.collectionId);
-      
-      let description = '';
-      if (activity.type === 'transaction') {
-        description = `${user ? user.firstName : 'User'} paid ${activity.amount} for "${collection ? collection.title : 'collection'}"`;
-      } else {
-        description = activity.isFromUser 
-          ? `${user ? user.firstName : 'User'} sent: ${activity.text}`
-          : `Bot replied: ${activity.text.substring(0, 50)}...`;
-      }
-      
-      return {
-        timestamp: new Date(activity.timestamp).toLocaleString(),
-        description,
-        type: activity.type
-      };
-    });
-    
-    setRecentActivity(recentActivityData);
-    
+    // Load all stats
+    loadStats();
   }, []);
 
-  // Цвета для диаграммы статусов
-  const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042'];
+  const loadStats = () => {
+    // Get daily stats for charts
+    const dailyStatsData = getDailyStats(14); // Last 14 days
+    setDailyStats(dailyStatsData);
+
+    // Get collection stats
+    const colStats = getCollectionStats();
+    setCollectionStats(colStats);
+
+    // Get user stats
+    const usrStats = getUserStats();
+    setUserStats(usrStats);
+
+    // Get transaction stats
+    const txStats = getTransactionStats();
+    setTransactionStats(txStats);
+
+    // Create data for status pie chart
+    const collections = getCollections();
+    const statusCounts = collections.reduce((acc: any, collection) => {
+      acc[collection.status] = (acc[collection.status] || 0) + 1;
+      return acc;
+    }, {});
+
+    const statusChartData = Object.keys(statusCounts).map(status => ({
+      name: status,
+      value: statusCounts[status]
+    }));
+    setStatusData(statusChartData);
+
+    // Get recent activity
+    const logEntries = getLogEntries();
+    const recentLogs = logEntries
+      .sort((a, b) => b.timestamp - a.timestamp)
+      .slice(0, 10)
+      .map(entry => {
+        const user = getUsers().find(u => u.id === entry.userId);
+        const userName = user ? `${user.firstName} ${user.lastName || ''}`.trim() : `User ${entry.userId}`;
+        
+        let description = '';
+        
+        if (entry.type.includes('transaction')) {
+          const collection = getCollections().find(c => c.id === entry.collectionId);
+          const amount = entry.amount || 0;
+          description = `${userName} ${entry.type} ${amount} ₽ for collection "${collection?.title || 'Unknown'}"`;
+        } else if (entry.type.includes('message')) {
+          description = entry.isFromUser ? 
+            `${userName} sent: "${entry.text?.substring(0, 50)}${entry.text && entry.text.length > 50 ? '...' : ''}"` : 
+            `Bot sent to ${userName}: "${entry.text?.substring(0, 50)}${entry.text && entry.text.length > 50 ? '...' : ''}"`;
+        } else {
+          description = `${userName} ${entry.type}`;
+        }
+        
+        return {
+          id: entry.id,
+          timestamp: entry.timestamp,
+          description
+        };
+      });
+    
+    setRecentActivity(recentLogs);
+  };
 
   return (
     <div className="space-y-6">
-      <h2 className="text-2xl font-bold">Аналитика</h2>
+      <h2 className="text-2xl font-bold mb-4">Аналитика</h2>
       
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+      {/* Stats Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Активные пользователи</CardTitle>
-            <CircleUser className="h-4 w-4 text-muted-foreground" />
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-gray-500">Сборы</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{activeUsers}</div>
-            <p className="text-xs text-muted-foreground">
-              за последние 30 дней
+            <div className="text-2xl font-bold mb-1">{collectionStats?.total || 0}</div>
+            <p className="text-xs text-gray-500">
+              Активных: {collectionStats?.active || 0} | 
+              Завершенных: {collectionStats?.completed || 0}
             </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Средний размер сбора</CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{avgCollectionSize} руб.</div>
-            <p className="text-xs text-muted-foreground">
-              на основе {collectionsData.length} сборов
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Всего сборов</CardTitle>
-            <BarChart3 className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{collectionsData.length}</div>
-            <p className="text-xs text-muted-foreground">
-              в системе
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-      
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>Сборы по дням</CardTitle>
-            <CardDescription>Количество созданных сборов</CardDescription>
-          </CardHeader>
-          <CardContent className="pl-2">
-            <div className="h-[300px] w-full">
-              <BarChart width={500} height={300} data={collectionsByDay} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="date" />
-                <YAxis />
-                <Tooltip />
-                <Legend />
-                <Bar dataKey="count" name="Количество сборов" fill="#8884d8" />
-              </BarChart>
-            </div>
           </CardContent>
         </Card>
         
         <Card>
-          <CardHeader>
-            <CardTitle>Статусы сборов</CardTitle>
-            <CardDescription>Распределение сборов по статусам</CardDescription>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-gray-500">Пользователи</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="h-[300px] w-full flex justify-center">
-              <PieChart width={400} height={300}>
-                <Pie
-                  data={statusDistribution}
-                  cx={200}
-                  cy={150}
-                  labelLine={false}
-                  label={({ status, percent }) => `${status} (${(percent * 100).toFixed(0)}%)`}
-                  outerRadius={80}
-                  fill="#8884d8"
-                  dataKey="count"
-                  nameKey="status"
-                >
-                  {statusDistribution.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip />
-              </PieChart>
-            </div>
+            <div className="text-2xl font-bold mb-1">{userStats?.total || 0}</div>
+            <p className="text-xs text-gray-500">
+              Активных: {userStats?.active || 0} | 
+              Заблокированных: {userStats?.blocked || 0}
+            </p>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-gray-500">Транзакции</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold mb-1">{transactionStats?.total || 0}</div>
+            <p className="text-xs text-gray-500">
+              Сумма: {transactionStats?.netAmount || 0} ₽ | 
+              Возвраты: {transactionStats?.refunds || 0}
+            </p>
           </CardContent>
         </Card>
       </div>
       
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Activity className="h-5 w-5" />
-            Последняя активность
-          </CardTitle>
-          <CardDescription>История последних действий в системе</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {recentActivity.map((activity, index) => (
-              <div key={index} className="flex justify-between items-start pb-2 border-b border-gray-100">
-                <div className="text-sm">
-                  <span className="font-semibold">{activity.timestamp}</span>
-                  <p className="mt-1 text-gray-600">{activity.description}</p>
+      {/* Charts */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Daily Collections Chart */}
+        <Card className="col-span-1">
+          <CardHeader>
+            <CardTitle>Сборы по дням</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="h-80">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={dailyStats}>
+                  <XAxis dataKey="date" />
+                  <YAxis />
+                  <Tooltip />
+                  <Legend />
+                  <Bar dataKey="collections" fill="#8884d8" name="Сборы" />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </CardContent>
+        </Card>
+        
+        {/* Daily Transactions Chart */}
+        <Card className="col-span-1">
+          <CardHeader>
+            <CardTitle>Транзакции по дням</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="h-80">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={dailyStats}>
+                  <XAxis dataKey="date" />
+                  <YAxis />
+                  <Tooltip />
+                  <Legend />
+                  <Bar dataKey="transactions" fill="#82ca9d" name="Транзакции" />
+                  <Bar dataKey="amount" fill="#ffc658" name="Сумма (₽)" />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </CardContent>
+        </Card>
+        
+        {/* Status Distribution Chart */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Распределение по статусам</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="h-80">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={statusData}
+                    cx="50%"
+                    cy="50%"
+                    outerRadius={80}
+                    fill="#8884d8"
+                    dataKey="value"
+                    label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                  >
+                    {statusData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          </CardContent>
+        </Card>
+        
+        {/* Recent Activity */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Недавняя активность</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4 max-h-80 overflow-y-auto">
+              {recentActivity.map((activity) => (
+                <div key={activity.id} className="border-b pb-2">
+                  <p className="text-sm">{activity.description}</p>
+                  <p className="text-xs text-gray-500">{new Date(activity.timestamp).toLocaleString()}</p>
                 </div>
-                <span className="text-xs px-2 py-1 rounded-full bg-gray-100">
-                  {activity.type === 'transaction' ? 'Платеж' : 'Сообщение'}
-                </span>
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
+              ))}
+              {recentActivity.length === 0 && (
+                <p className="text-center text-gray-500">Нет данных о недавней активности</p>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 };

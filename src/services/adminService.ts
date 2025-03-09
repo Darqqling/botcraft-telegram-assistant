@@ -1,213 +1,77 @@
 
+import { User, Collection, Transaction, CollectionStatus, ActivityLogEntry } from "@/types/collectionTypes";
 import { v4 as uuidv4 } from 'uuid';
 import { 
-  Collection, 
-  User, 
-  Transaction, 
-  CollectionStatus 
-} from '@/types/collectionTypes';
-import { 
-  Admin, 
-  AdminLog, 
-  BotSettings,
-  ChatStats 
-} from '@/types/adminTypes';
-import {
-  getCollections,
-  getUsers,
-  getTransactions,
-  saveCollections,
+  getCollections, 
+  saveCollections, 
+  getUsers, 
   saveUsers,
-  saveTransactions
-} from './storageService';
+  getTransactions,
+  saveTransactions,
+  addLogEntry
+} from "./storageService";
 
-// Admin storage keys
-const ADMINS_KEY = 'telegram_bot_admins';
-const ADMIN_LOGS_KEY = 'telegram_bot_admin_logs';
-const BOT_SETTINGS_KEY = 'telegram_bot_settings';
-const CHATS_STATS_KEY = 'telegram_bot_chats_stats';
-
-// Admin management
-export const getAdmins = (): Admin[] => {
-  try {
-    const admins = localStorage.getItem(ADMINS_KEY);
-    return admins ? JSON.parse(admins) : [];
-  } catch (error) {
-    console.error('Error getting admins:', error);
-    return [];
-  }
-};
-
-export const saveAdmins = (admins: Admin[]): void => {
-  try {
-    localStorage.setItem(ADMINS_KEY, JSON.stringify(admins));
-  } catch (error) {
-    console.error('Error saving admins:', error);
-  }
-};
-
-export const isAdmin = (userId: number): boolean => {
-  const admins = getAdmins();
-  return admins.some(admin => admin.userId === userId);
-};
-
-export const getAdminByUserId = (userId: number): Admin | undefined => {
-  const admins = getAdmins();
-  return admins.find(admin => admin.userId === userId);
-};
-
-export const addAdmin = (userId: number, role: Admin['role'] = 'moderator'): Admin | null => {
-  const users = getUsers();
-  const user = users.find(u => u.id === userId);
+// Freeze a collection
+export const freezeCollection = (collectionId: string): boolean => {
+  const collections = getCollections();
+  const collectionIndex = collections.findIndex(c => c.id === collectionId);
   
-  if (!user) {
-    return null;
+  if (collectionIndex === -1) {
+    return false;
   }
   
-  const admins = getAdmins();
+  collections[collectionIndex].status = 'frozen';
+  collections[collectionIndex].updatedAt = Date.now();
   
-  // Check if already an admin
-  if (admins.some(admin => admin.userId === userId)) {
-    return null;
-  }
+  saveCollections(collections);
   
-  const newAdmin: Admin = {
-    id: Date.now(),
-    userId,
-    role,
-    createdAt: Date.now()
+  // Log the action
+  const logEntry: ActivityLogEntry = {
+    id: uuidv4(),
+    type: 'collection_status_change',
+    userId: 0, // Admin user
+    timestamp: Date.now(),
+    collectionId: collectionId
   };
+  addLogEntry(logEntry);
   
-  admins.push(newAdmin);
-  saveAdmins(admins);
+  return true;
+};
+
+// Unfreeze a collection
+export const unfreezeCollection = (collectionId: string): boolean => {
+  const collections = getCollections();
+  const collectionIndex = collections.findIndex(c => c.id === collectionId);
+  
+  if (collectionIndex === -1) {
+    return false;
+  }
+  
+  // Can only unfreeze a frozen collection
+  if (collections[collectionIndex].status !== 'frozen') {
+    return false;
+  }
+  
+  collections[collectionIndex].status = 'active';
+  collections[collectionIndex].updatedAt = Date.now();
+  
+  saveCollections(collections);
   
   // Log the action
-  logAdminAction(0, `Added new admin (${role})`, `User ${userId} was granted ${role} permissions`, 'user', userId);
-  
-  return newAdmin;
-};
-
-export const removeAdmin = (adminId: number, performedBy: number): boolean => {
-  const admins = getAdmins();
-  const adminIndex = admins.findIndex(admin => admin.id === adminId);
-  
-  if (adminIndex === -1) {
-    return false;
-  }
-  
-  const removedAdmin = admins[adminIndex];
-  admins.splice(adminIndex, 1);
-  saveAdmins(admins);
-  
-  // Log the action
-  logAdminAction(
-    performedBy, 
-    'Removed admin', 
-    `Admin ${removedAdmin.userId} with role ${removedAdmin.role} was removed`,
-    'user',
-    removedAdmin.userId
-  );
+  const logEntry: ActivityLogEntry = {
+    id: uuidv4(),
+    type: 'collection_status_change',
+    userId: 0, // Admin user
+    timestamp: Date.now(),
+    collectionId: collectionId
+  };
+  addLogEntry(logEntry);
   
   return true;
 };
 
-// Collection management
-export const freezeCollection = (collectionId: string, adminId: number): boolean => {
-  const collections = getCollections();
-  const collectionIndex = collections.findIndex(c => c.id === collectionId);
-  
-  if (collectionIndex === -1) {
-    return false;
-  }
-  
-  const collection = collections[collectionIndex];
-  
-  // Only active collections can be frozen
-  if (collection.status !== 'active') {
-    return false;
-  }
-  
-  // Set status to "frozen" (we'll need to add this status to the CollectionStatus type)
-  collection.status = 'frozen' as CollectionStatus;
-  collections[collectionIndex] = collection;
-  saveCollections(collections);
-  
-  // Log action
-  logAdminAction(
-    adminId,
-    'Froze collection',
-    `Collection ${collectionId} (${collection.title}) was frozen`,
-    'collection',
-    collectionId
-  );
-  
-  return true;
-};
-
-export const unfreezeCollection = (collectionId: string, adminId: number): boolean => {
-  const collections = getCollections();
-  const collectionIndex = collections.findIndex(c => c.id === collectionId);
-  
-  if (collectionIndex === -1) {
-    return false;
-  }
-  
-  const collection = collections[collectionIndex];
-  
-  // Only frozen collections can be unfrozen
-  if (collection.status !== 'frozen') {
-    return false;
-  }
-  
-  collection.status = 'active';
-  collections[collectionIndex] = collection;
-  saveCollections(collections);
-  
-  // Log action
-  logAdminAction(
-    adminId,
-    'Unfroze collection',
-    `Collection ${collectionId} (${collection.title}) was unfrozen`,
-    'collection',
-    collectionId
-  );
-  
-  return true;
-};
-
-export const cancelCollectionByAdmin = (collectionId: string, adminId: number, reason: string): boolean => {
-  const collections = getCollections();
-  const collectionIndex = collections.findIndex(c => c.id === collectionId);
-  
-  if (collectionIndex === -1) {
-    return false;
-  }
-  
-  const collection = collections[collectionIndex];
-  
-  // Only active or frozen collections can be cancelled
-  if (collection.status !== 'active' && collection.status !== 'frozen') {
-    return false;
-  }
-  
-  collection.status = 'cancelled';
-  collections[collectionIndex] = collection;
-  saveCollections(collections);
-  
-  // Log action
-  logAdminAction(
-    adminId,
-    'Cancelled collection',
-    `Collection ${collectionId} (${collection.title}) was cancelled by admin. Reason: ${reason}`,
-    'collection',
-    collectionId
-  );
-  
-  return true;
-};
-
-// User management
-export const blockUser = (userId: number, adminId: number, reason: string): boolean => {
+// Block a user
+export const blockUser = (userId: number, reason: string): boolean => {
   const users = getUsers();
   const userIndex = users.findIndex(u => u.id === userId);
   
@@ -215,26 +79,26 @@ export const blockUser = (userId: number, adminId: number, reason: string): bool
     return false;
   }
   
-  const user = users[userIndex];
-  user.isBlocked = true;
-  user.blockReason = reason;
-  user.blockedAt = Date.now();
-  users[userIndex] = user;
+  users[userIndex].isBlocked = true;
+  users[userIndex].blockReason = reason;
+  users[userIndex].blockedAt = Date.now();
+  
   saveUsers(users);
   
-  // Log action
-  logAdminAction(
-    adminId,
-    'Blocked user',
-    `User ${userId} (${user.firstName} ${user.lastName || ''}) was blocked. Reason: ${reason}`,
-    'user',
-    userId
-  );
+  // Log the action
+  const logEntry: ActivityLogEntry = {
+    id: uuidv4(),
+    type: 'user_blocked',
+    userId: 0, // Admin user
+    timestamp: Date.now()
+  };
+  addLogEntry(logEntry);
   
   return true;
 };
 
-export const unblockUser = (userId: number, adminId: number): boolean => {
+// Unblock a user
+export const unblockUser = (userId: number): boolean => {
   const users = getUsers();
   const userIndex = users.findIndex(u => u.id === userId);
   
@@ -242,27 +106,26 @@ export const unblockUser = (userId: number, adminId: number): boolean => {
     return false;
   }
   
-  const user = users[userIndex];
-  user.isBlocked = false;
-  user.blockReason = undefined;
-  user.blockedAt = undefined;
-  users[userIndex] = user;
+  users[userIndex].isBlocked = false;
+  users[userIndex].blockReason = undefined;
+  users[userIndex].blockedAt = undefined;
+  
   saveUsers(users);
   
-  // Log action
-  logAdminAction(
-    adminId,
-    'Unblocked user',
-    `User ${userId} (${user.firstName} ${user.lastName || ''}) was unblocked`,
-    'user',
-    userId
-  );
+  // Log the action
+  const logEntry: ActivityLogEntry = {
+    id: uuidv4(),
+    type: 'user_unblocked',
+    userId: 0, // Admin user
+    timestamp: Date.now()
+  };
+  addLogEntry(logEntry);
   
   return true;
 };
 
-// Transaction management
-export const cancelTransaction = (transactionId: string, adminId: number, reason: string): boolean => {
+// Cancel a transaction
+export const cancelTransaction = (transactionId: string, reason: string): boolean => {
   const transactions = getTransactions();
   const transactionIndex = transactions.findIndex(t => t.id === transactionId);
   
@@ -270,297 +133,117 @@ export const cancelTransaction = (transactionId: string, adminId: number, reason
     return false;
   }
   
-  const transaction = transactions[transactionIndex];
-  transaction.cancelled = true;
-  transaction.cancelReason = reason;
-  transaction.cancelledAt = Date.now();
-  transactions[transactionIndex] = transaction;
+  transactions[transactionIndex].cancelled = true;
+  transactions[transactionIndex].cancelReason = reason;
+  transactions[transactionIndex].cancelledAt = Date.now();
+  
   saveTransactions(transactions);
   
-  // Now we need to update the collection's current amount
-  const collections = getCollections();
-  const collectionIndex = collections.findIndex(c => c.id === transaction.collectionId);
-  
-  if (collectionIndex !== -1) {
-    const collection = collections[collectionIndex];
-    collection.currentAmount -= transaction.amount;
-    
-    // Find the participant and update their payment status
-    const participantIndex = collection.participants.findIndex(p => p.userId === transaction.userId);
-    if (participantIndex !== -1) {
-      collection.participants[participantIndex].hasPaid = false;
-    }
-    
-    collections[collectionIndex] = collection;
-    saveCollections(collections);
-  }
-  
-  // Log action
-  logAdminAction(
-    adminId,
-    'Cancelled transaction',
-    `Transaction ${transactionId} (${transaction.amount} руб.) was cancelled. Reason: ${reason}`,
-    'transaction',
-    transactionId
-  );
-  
-  return true;
-};
-
-// Chat management
-export const getChatStats = (): ChatStats[] => {
-  try {
-    const stats = localStorage.getItem(CHATS_STATS_KEY);
-    return stats ? JSON.parse(stats) : [];
-  } catch (error) {
-    console.error('Error getting chat stats:', error);
-    return [];
-  }
-};
-
-export const saveChatStats = (stats: ChatStats[]): void => {
-  try {
-    localStorage.setItem(CHATS_STATS_KEY, JSON.stringify(stats));
-  } catch (error) {
-    console.error('Error saving chat stats:', error);
-  }
-};
-
-export const disableChat = (chatId: number, adminId: number, reason: string): boolean => {
-  const stats = getChatStats();
-  const chatIndex = stats.findIndex(c => c.chatId === chatId);
-  
-  if (chatIndex === -1) {
-    return false;
-  }
-  
-  stats[chatIndex].isActive = false;
-  saveChatStats(stats);
-  
-  // Log action
-  logAdminAction(
-    adminId,
-    'Disabled chat',
-    `Chat ${chatId} was disabled. Reason: ${reason}`,
-    'chat',
-    chatId
-  );
-  
-  return true;
-};
-
-export const enableChat = (chatId: number, adminId: number): boolean => {
-  const stats = getChatStats();
-  const chatIndex = stats.findIndex(c => c.chatId === chatId);
-  
-  if (chatIndex === -1) {
-    return false;
-  }
-  
-  stats[chatIndex].isActive = true;
-  saveChatStats(stats);
-  
-  // Log action
-  logAdminAction(
-    adminId,
-    'Enabled chat',
-    `Chat ${chatId} was enabled`,
-    'chat',
-    chatId
-  );
-  
-  return true;
-};
-
-// Bot settings
-export const getBotSettings = (): BotSettings => {
-  try {
-    const settings = localStorage.getItem(BOT_SETTINGS_KEY);
-    if (settings) {
-      return JSON.parse(settings);
-    }
-  } catch (error) {
-    console.error('Error getting bot settings:', error);
-  }
-  
-  // Default settings
-  return {
-    minimumCollectionAmount: 500,
-    maximumCollectionAmount: 100000,
-    defaultCollectionDuration: 14, // days
-    reminderFrequencyDays: 3,
-    enabledCommands: [
-      'new_collection',
-      'group_new_collection',
-      'join_collection',
-      'pay',
-      'confirm_gift',
-      'cancel',
-      'status',
-      'collection_status',
-      'add_gift_option',
-      'vote',
-      'update_amount',
-      'send_reminders'
-    ],
-    featuresEnabled: {
-      groupCollections: true,
-      giftVoting: true,
-      reminders: true,
-      statistics: true
-    }
-  };
-};
-
-export const saveBotSettings = (settings: BotSettings, adminId: number): void => {
-  try {
-    localStorage.setItem(BOT_SETTINGS_KEY, JSON.stringify(settings));
-    
-    // Log action
-    logAdminAction(
-      adminId,
-      'Updated bot settings',
-      'Bot settings were updated',
-      'system'
-    );
-  } catch (error) {
-    console.error('Error saving bot settings:', error);
-  }
-};
-
-// Admin logs
-export const getAdminLogs = (): AdminLog[] => {
-  try {
-    const logs = localStorage.getItem(ADMIN_LOGS_KEY);
-    return logs ? JSON.parse(logs) : [];
-  } catch (error) {
-    console.error('Error getting admin logs:', error);
-    return [];
-  }
-};
-
-export const saveAdminLogs = (logs: AdminLog[]): void => {
-  try {
-    localStorage.setItem(ADMIN_LOGS_KEY, JSON.stringify(logs));
-  } catch (error) {
-    console.error('Error saving admin logs:', error);
-  }
-};
-
-export const logAdminAction = (
-  adminId: number,
-  action: string,
-  details: string,
-  targetType?: AdminLog['targetType'],
-  targetId?: string | number
-): AdminLog => {
-  const logs = getAdminLogs();
-  
-  const log: AdminLog = {
+  // Log the action
+  const logEntry: ActivityLogEntry = {
     id: uuidv4(),
-    adminId,
-    action,
-    details,
-    targetType,
-    targetId,
+    type: 'transaction_cancelled',
+    userId: 0, // Admin user
     timestamp: Date.now()
   };
+  addLogEntry(logEntry);
   
-  logs.push(log);
-  saveAdminLogs(logs);
-  
-  return log;
+  return true;
 };
 
-// Analytics and reports
-export const getCollectionsStats = () => {
+// Get collection statistics
+export const getCollectionStats = () => {
   const collections = getCollections();
+  const activeCollections = collections.filter(c => c.status === 'active');
+  const pendingCollections = collections.filter(c => c.status === 'pending');
+  const completedCollections = collections.filter(c => c.status === 'completed');
+  const cancelledCollections = collections.filter(c => c.status === 'cancelled');
+  const frozenCollections = collections.filter(c => c.status === 'frozen');
+  
+  const totalTargetAmount = collections.reduce((sum, c) => sum + c.targetAmount, 0);
+  const totalCurrentAmount = collections.reduce((sum, c) => sum + c.currentAmount, 0);
   
   return {
     total: collections.length,
-    active: collections.filter(c => c.status === 'active').length,
-    completed: collections.filter(c => c.status === 'completed').length,
-    cancelled: collections.filter(c => c.status === 'cancelled').length,
-    frozen: collections.filter(c => c.status === 'frozen').length,
-    totalAmount: collections.reduce((sum, c) => sum + c.currentAmount, 0),
-    avgAmount: collections.length > 0 
-      ? collections.reduce((sum, c) => sum + c.currentAmount, 0) / collections.length
-      : 0,
-    recentCollections: collections
-      .sort((a, b) => b.createdAt - a.createdAt)
-      .slice(0, 5)
+    active: activeCollections.length,
+    pending: pendingCollections.length,
+    completed: completedCollections.length,
+    cancelled: cancelledCollections.length,
+    frozen: frozenCollections.length,
+    totalTargetAmount,
+    totalCurrentAmount,
+    averageTargetAmount: collections.length ? totalTargetAmount / collections.length : 0,
+    averageCollectedAmount: collections.length ? totalCurrentAmount / collections.length : 0,
+    successRate: collections.length ? completedCollections.length / collections.length : 0
   };
 };
 
-export const getUsersStats = () => {
+// Get user statistics
+export const getUserStats = () => {
   const users = getUsers();
-  const collections = getCollections();
-  
-  // Get users who have created collections
-  const organizers = [...new Set(collections.map(c => c.organizerId))];
-  
-  // Get unique participants
-  const allParticipants = collections.flatMap(c => c.participants.map(p => p.userId));
-  const uniqueParticipants = [...new Set(allParticipants)];
+  const blockedUsers = users.filter(u => u.isBlocked);
   
   return {
     total: users.length,
-    active: uniqueParticipants.length,
-    organizers: organizers.length,
-    blocked: users.filter(u => u.isBlocked).length,
-    newUsersLast7Days: users.filter(u => (Date.now() - u.createdAt) < 7 * 24 * 60 * 60 * 1000).length
+    blocked: blockedUsers.length,
+    active: users.length - blockedUsers.length
   };
 };
 
-export const getTransactionsStats = () => {
+// Get transaction statistics
+export const getTransactionStats = () => {
   const transactions = getTransactions();
+  const contributions = transactions.filter(t => t.type === 'contribution' && !t.cancelled);
+  const refunds = transactions.filter(t => t.type === 'refund');
+  const cancelledTransactions = transactions.filter(t => t.cancelled);
+  
+  const totalContributionAmount = contributions.reduce((sum, t) => sum + t.amount, 0);
+  const totalRefundAmount = refunds.reduce((sum, t) => sum + t.amount, 0);
   
   return {
     total: transactions.length,
-    totalAmount: transactions.reduce((sum, t) => sum + t.amount, 0),
-    cancelled: transactions.filter(t => t.cancelled).length,
-    last24Hours: transactions.filter(t => (Date.now() - t.timestamp) < 24 * 60 * 60 * 1000).length,
-    last7Days: transactions.filter(t => (Date.now() - t.timestamp) < 7 * 24 * 60 * 60 * 1000).length,
-    lastMonth: transactions.filter(t => (Date.now() - t.timestamp) < 30 * 24 * 60 * 60 * 1000).length
+    contributions: contributions.length,
+    refunds: refunds.length,
+    cancelled: cancelledTransactions.length,
+    totalContributionAmount,
+    totalRefundAmount,
+    netAmount: totalContributionAmount - totalRefundAmount
   };
 };
 
-// Export default settings
-export const resetBotSettings = (adminId: number): void => {
-  const defaultSettings: BotSettings = {
-    minimumCollectionAmount: 500,
-    maximumCollectionAmount: 100000,
-    defaultCollectionDuration: 14,
-    reminderFrequencyDays: 3,
-    enabledCommands: [
-      'new_collection',
-      'group_new_collection',
-      'join_collection',
-      'pay',
-      'confirm_gift',
-      'cancel',
-      'status',
-      'collection_status',
-      'add_gift_option',
-      'vote',
-      'update_amount',
-      'send_reminders'
-    ],
-    featuresEnabled: {
-      groupCollections: true,
-      giftVoting: true,
-      reminders: true,
-      statistics: true
-    }
-  };
+// Get daily statistics for the last n days
+export const getDailyStats = (days: number = 30) => {
+  const collections = getCollections();
+  const transactions = getTransactions();
+  const users = getUsers();
   
-  saveBotSettings(defaultSettings, adminId);
+  const now = Date.now();
+  const msPerDay = 24 * 60 * 60 * 1000;
+  const result = [];
   
-  // Log action
-  logAdminAction(
-    adminId,
-    'Reset bot settings',
-    'Bot settings were reset to default values',
-    'system'
-  );
+  for (let i = 0; i < days; i++) {
+    const date = new Date(now - i * msPerDay);
+    const day = date.toISOString().split('T')[0];
+    
+    const dayStart = new Date(day).getTime();
+    const dayEnd = dayStart + msPerDay;
+    
+    const newCollections = collections.filter(c => c.createdAt >= dayStart && c.createdAt < dayEnd);
+    const newTransactions = transactions.filter(t => t.timestamp >= dayStart && t.timestamp < dayEnd && !t.cancelled);
+    const newUsers = users.filter(u => u.createdAt >= dayStart && u.createdAt < dayEnd);
+    
+    const dailyAmount = newTransactions
+      .filter(t => t.type === 'contribution')
+      .reduce((sum, t) => sum + t.amount, 0);
+    
+    result.push({
+      date: day,
+      collections: newCollections.length,
+      transactions: newTransactions.length,
+      users: newUsers.length,
+      amount: dailyAmount
+    });
+  }
+  
+  return result.reverse();
 };

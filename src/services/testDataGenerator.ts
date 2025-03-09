@@ -1,4 +1,3 @@
-
 import { v4 as uuidv4 } from 'uuid';
 import { 
   User, 
@@ -159,7 +158,7 @@ export const generateCollections = (users: User[], groupChats: { id: number, tit
     const targetAmount = getRandomInt(2000, 15000);
     
     // Случайный статус с приоритетом на активные коллекции
-    const status = i < 10 ? 'active' : getRandomElement(statuses);
+    const status = i < 10 ? 'active' : getRandomElement(statuses) as CollectionStatus;
     
     // Случайный организатор из списка пользователей
     const organizerId = users[getRandomInt(0, users.length - 1)].id;
@@ -170,7 +169,7 @@ export const generateCollections = (users: User[], groupChats: { id: number, tit
       giftRecipientId = users[getRandomInt(0, users.length - 1)].id;
     } while (giftRecipientId === organizerId);
     
-    // Создаем от 3 до 8 участников
+    // Создае�� от 3 до 8 участников
     const participantsCount = getRandomInt(3, 8);
     const participants: CollectionParticipant[] = [];
     const usedUserIds = new Set<number>([organizerId]); // Организатор уже используется
