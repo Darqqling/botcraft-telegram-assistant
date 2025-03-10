@@ -41,8 +41,25 @@ export const sendMessage = async (
   }
   
   try {
+    // Format options properly for Telegram API
+    let telegramOptions: any = {};
+    
+    if (options) {
+      if (options.replyMarkup) {
+        telegramOptions.reply_markup = options.replyMarkup;
+      }
+      
+      if (options.parseMode) {
+        telegramOptions.parse_mode = options.parseMode;
+      }
+      
+      if (options.disableWebPagePreview !== undefined) {
+        telegramOptions.disable_web_page_preview = options.disableWebPagePreview;
+      }
+    }
+    
     // Use the telegram service to send the message
-    const result = await telegramSendMessage(botToken, chatId, text, options);
+    const result = await telegramSendMessage(botToken, chatId, text, telegramOptions);
     console.log(`[MessageUtils] Successfully sent message to chat ${chatId}`);
     
     // Update the timestamp for this chat and cache the message hash

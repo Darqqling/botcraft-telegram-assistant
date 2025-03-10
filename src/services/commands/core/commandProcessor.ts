@@ -5,7 +5,8 @@ import {
   handleHelpCommand, 
   handleHowItWorksCommand, 
   handleMyCollectionsCommand,
-  handleBackToMainCommand
+  handleBackToMainCommand,
+  isGroupChat
 } from './menuCommands';
 import { handlePaymentOptionsCommand, handleIPaidCommand } from './paymentHandlers';
 import { answerCallbackQuery } from '../../telegramService';
@@ -50,6 +51,8 @@ export const processCommand = (
     }
   }
   
+  console.log(`[CommandProcessor] Processing command: ${command} in chat ${chatId} (${isGroupChat(chatId) ? 'group' : 'personal'})`);
+  
   if (command === '/start') {
     return handleStartCommand(botToken, chatId, userId);
   } else if (command === '/help') {
@@ -58,6 +61,21 @@ export const processCommand = (
     return handleHowItWorksCommand(botToken, chatId);
   } else if (command === '/my_collections') {
     return handleMyCollectionsCommand(botToken, chatId, userId);
+  } else if (command === '/new_collection') {
+    // Only allow new_collection command in group chats
+    if (isGroupChat(chatId)) {
+      return handleGroupNewCollectionCallback({ 
+        message: { chat: { id: chatId } },
+        from: { id: userId },
+        data: 'group_new_collection' 
+      }, botToken);
+    } else {
+      return sendMessage(
+        botToken, 
+        chatId, 
+        "🚫 Создание сборов доступно только в групповых чатах. Пожалуйста, добавьте бота в групповой чат и используйте эту команду там."
+      );
+    }
   } else {
     // For other commands, use existing handlers
     // Default response if no handler matches
@@ -94,7 +112,8 @@ export const processCallbackQuery = async (
   const callbackData = callbackQuery.data;
   const firstName = callbackQuery.from.first_name;
   
-  console.log(`[CommandProcessor] Processing callback query: ${callbackData} from user ${userId} in chat ${chatId}`);
+  const isGroup = isGroupChat(chatId);
+  console.log(`[CommandProcessor] Processing callback query: ${callbackData} from user ${userId} in ${isGroup ? 'group' : 'personal'} chat ${chatId}`);
   
   // Parse the callback data
   const parts = callbackData.split(':');
@@ -104,21 +123,53 @@ export const processCallbackQuery = async (
   try {
     switch (action) {
       case 'new_collection':
+        // Only allow in personal chat if specifically requested (from a deeplink)
+        if (!isGroup) {
+          return sendMessage(
+            botToken,
+            chatId,
+            "🚫 Создание сборов доступно только в групповых чатах. Пожалуйста, добавьте бота в групповой чат и используйте команду /new_collection там."
+          );
+        }
         return handleNewCollectionCallback(callbackQuery, botToken);
+        
       case 'group_new_collection':
+        // Only allow in group chats
+        if (!isGroup) {
+          return sendMessage(
+            botToken,
+            chatId,
+            "🚫 Создание сборов доступно только в групповых чатах. Пожалуйста, добавьте бота в групповой чат."
+          );
+        }
         return handleGroupNewCollectionCallback(callbackQuery, botToken);
+        
       case 'my_collections':
+        // Only makes sense in personal chat
+        if (isGroup) {
+          return sendMessage(
+            botToken,
+            chatId,
+            "Для просмотра ваших сборов, пожалуйста, напишите боту в личные сообщения."
+          );
+        }
         return handleMyCollectionsCommand(botToken, chatId, userId);
+        
       case 'how_it_works':
         return handleHowItWorksCommand(botToken, chatId);
+        
       case 'help':
         return handleHelpCommand(botToken, chatId);
+        
       case 'back_to_main':
         return handleBackToMainCommand(botToken, chatId, userId);
+        
       case 'join':
         return handleJoinCollectionCallback(botToken, userId, chatId, firstName, parts);
+        
       case 'pay':
         return handlePayCallback(botToken, userId, chatId, firstName, parts);
+        
       case 'pay_amount':
         // Handle payment with predefined amount
         if (parts.length >= 3) {
@@ -127,25 +178,32 @@ export const processCallbackQuery = async (
           return handleIPaidCommand(botToken, chatId, userId, firstName, collectionId, amount);
         }
         break;
+        
       case 'payment_options':
         if (parts.length >= 2) {
           const collectionId = parts[1];
           return handlePaymentOptionsCommand(botToken, chatId, collectionId);
         }
         break;
+        
       case 'i_paid':
         if (parts.length >= 2) {
           const collectionId = parts[1];
-          // For now, assuming a default amount
-          return handleIPaidCommand(botToken, chatId, userId, firstName, collectionId, 1000);
+          // Get amount if provided
+          const amount = parts.length >= 3 ? parseFloat(parts[2]) : 1000;
+          return handleIPaidCommand(botToken, chatId, userId, firstName, collectionId, amount);
         }
         break;
+        
       case 'status':
         return handleStatusCallback(callbackQuery, botToken);
+        
       case 'collection_status':
         return handleCollectionStatusCallback(callbackQuery, botToken);
+        
       case 'send_reminders':
         return handleSendRemindersCallback(callbackQuery, botToken);
+        
       default:
         console.log(`[CommandProcessor] Unknown callback action: ${action}`);
         return sendMessage(botToken, chatId, "Неизвестное действие. Попробуйте еще раз.");

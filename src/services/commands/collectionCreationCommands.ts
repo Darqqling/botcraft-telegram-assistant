@@ -2,6 +2,7 @@
 import { sendMessage } from './baseCommandHandler';
 import { InlineKeyboardMarkup } from '@/services/telegramService';
 import { createCollection, ensureUserExists } from '../collectionService';
+import { isGroupChat } from './core/menuCommands';
 
 // Handle the callback for creating a new collection
 export const handleNewCollectionCallback = (
@@ -13,12 +14,23 @@ export const handleNewCollectionCallback = (
   const userId = callbackQuery.from.id;
   const firstName = callbackQuery.from.first_name;
   
+  // Check if this is a group chat
+  if (!isGroupChat(chatId)) {
+    return sendMessage(
+      botToken,
+      chatId,
+      `🚫 Создание сборов доступно только в групповых чатах. Пожалуйста, добавьте бота в групповой чат и используйте команду /new_collection там.`
+    );
+  }
+  
   // Ensure user exists in our system
   ensureUserExists(userId, firstName, chatId);
   
   // Initial step for collection creation - ask for the collection title
   const message = `
 🌟 Создание нового сбора 🌟
+
+@${firstName}, Вы начали создание сбора в этой группе.
 
 Для начала, введите название сбора (например, "День рождения Ивана" или "Подарок коллеге").
 
@@ -51,12 +63,23 @@ export const handleGroupNewCollectionCallback = (
   const userId = callbackQuery.from.id;
   const firstName = callbackQuery.from.first_name;
   
+  // Check if this is a group chat
+  if (!isGroupChat(chatId)) {
+    return sendMessage(
+      botToken,
+      chatId,
+      `🚫 Создание сборов доступно только в групповых чатах. Пожалуйста, добавьте бота в групповой чат и используйте команду /new_collection там.`
+    );
+  }
+  
   // Ensure user exists in our system
   ensureUserExists(userId, firstName, chatId);
   
   // Initial step for group collection creation
   const message = `
 👥 Создание группового сбора 👥
+
+@${firstName} хочет организовать сбор в этой группе!
 
 Этот сбор будет привязан к текущему чату, и все участники чата смогут присоединиться.
 
