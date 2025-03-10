@@ -41,7 +41,7 @@ export const processCallbackQuery = (
 
 // Import the command handlers without creating a circular dependency
 import * as collectionCreationCommands from './collectionCreationCommands';
-import * as participationCommands from './participationCommands';
+import * as participation from './participation'; // Update the import to use the new directory structure
 import * as organizerCommands from './organizerCommands';
 import * as statusCommands from './statusCommands';
 import * as giftOptionCommands from './giftOptionCommands';
