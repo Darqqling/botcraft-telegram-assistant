@@ -22,6 +22,9 @@ export const sendMessage = async (
   const messageHash = getMessageHash(chatId, text);
   const now = Date.now();
   
+  // Log message attempt for debugging
+  console.log(`[MessageUtils] Attempting to send message to chat ${chatId}: ${text.substring(0, 30)}...`);
+  
   // If this exact message was sent to this chat recently (within 5 seconds), don't send it again
   if (messageCache[messageHash] && now - messageCache[messageHash] < 5000) {
     console.log(`[MessageUtils] Preventing duplicate message to chat ${chatId}`);
@@ -40,6 +43,7 @@ export const sendMessage = async (
   try {
     // Use the telegram service to send the message
     const result = await telegramSendMessage(botToken, chatId, text, options);
+    console.log(`[MessageUtils] Successfully sent message to chat ${chatId}`);
     
     // Update the timestamp for this chat and cache the message hash
     lastMessageSentTimestamp[chatId] = Date.now();
@@ -55,6 +59,8 @@ export const sendMessage = async (
     
     return result;
   } catch (error: any) {
+    console.error(`[MessageUtils] Error sending message to chat ${chatId}:`, error);
+    
     // If we get a rate limit error from Telegram, extract the retry time and wait
     if (error.message && error.message.includes('Too Many Requests') && error.message.includes('retry after')) {
       const retryAfterMatch = error.message.match(/retry after (\d+)/);

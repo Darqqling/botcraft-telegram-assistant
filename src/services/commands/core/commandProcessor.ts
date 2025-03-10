@@ -1,3 +1,4 @@
+
 import { sendMessage } from './messageUtils';
 import { 
   handleStartCommand, 
@@ -79,13 +80,21 @@ export const processCallbackQuery = async (
   // Mark as processed
   processedCallbacks.add(`cb:${callbackId}`);
   
-  // First, acknowledge the callback query to avoid the loading indicator
-  await answerCallbackQuery(botToken, callbackId);
+  // Immediately acknowledge the callback query to remove "Loading..." indicator
+  try {
+    await answerCallbackQuery(botToken, callbackId);
+    console.log(`[CommandProcessor] Acknowledged callback query: ${callbackId}`);
+  } catch (error) {
+    console.error(`[CommandProcessor] Error acknowledging callback query:`, error);
+    // Continue processing even if acknowledgment fails
+  }
   
   const chatId = callbackQuery.message.chat.id;
   const userId = callbackQuery.from.id;
   const callbackData = callbackQuery.data;
   const firstName = callbackQuery.from.first_name;
+  
+  console.log(`[CommandProcessor] Processing callback query: ${callbackData} from user ${userId} in chat ${chatId}`);
   
   // Parse the callback data
   const parts = callbackData.split(':');
@@ -138,6 +147,7 @@ export const processCallbackQuery = async (
       case 'send_reminders':
         return handleSendRemindersCallback(callbackQuery, botToken);
       default:
+        console.log(`[CommandProcessor] Unknown callback action: ${action}`);
         return sendMessage(botToken, chatId, "Неизвестное действие. Попробуйте еще раз.");
     }
   } catch (error) {

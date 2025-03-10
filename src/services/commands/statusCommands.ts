@@ -1,5 +1,5 @@
 
-import { sendMessage } from './baseCommandHandler';
+import { sendMessage } from './core/messageUtils';
 
 // Using any for simplicity since we're just creating stubs to fix type errors
 export const handleStatusCallback = (
@@ -15,6 +15,8 @@ export const handleStatusCallback = (
   const callbackData = callbackQuery.data;
   const parts = callbackData.split(':');
   const collectionId = parts[1];
+  
+  console.log(`[StatusCommands] Handling status callback for collection ${collectionId} in chat ${chatId}`);
   
   // Send a status message
   sendMessage(
@@ -40,6 +42,8 @@ export const handleCollectionStatusCallback = (
   const callbackData = callbackQuery.data;
   const parts = callbackData.split(':');
   const collectionId = parts[1];
+  
+  console.log(`[StatusCommands] Handling collection_status callback for collection ${collectionId} in chat ${chatId}`);
   
   // Send a detailed collection status message
   sendMessage(

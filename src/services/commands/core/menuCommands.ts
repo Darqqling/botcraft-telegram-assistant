@@ -8,6 +8,8 @@ export const handleStartCommand = async (
   chatId: number,
   userId: number
 ): Promise<any> => {
+  console.log(`[MenuCommands] Handling start command for user ${userId} in chat ${chatId}`);
+  
   const welcomeMessage = `
 👋 Добро пожаловать в Подарочный Бот!
 
@@ -40,6 +42,8 @@ export const handleHelpCommand = async (
   token: string,
   chatId: number
 ): Promise<any> => {
+  console.log(`[MenuCommands] Handling help command in chat ${chatId}`);
+  
   const helpMessage = `
 📚 Помощь по использованию бота:
 
@@ -69,6 +73,8 @@ export const handleHowItWorksCommand = async (
   token: string,
   chatId: number
 ): Promise<any> => {
+  console.log(`[MenuCommands] Handling how_it_works command in chat ${chatId}`);
+  
   const howItWorksMessage = `
 🔍 Как работает Подарочный Бот:
 
@@ -98,6 +104,8 @@ export const handleMyCollectionsCommand = async (
   chatId: number,
   userId: number
 ): Promise<any> => {
+  console.log(`[MenuCommands] Handling my_collections command for user ${userId} in chat ${chatId}`);
+  
   // This will be implemented to fetch and display the user's collections
   const collectionsMessage = `
 📋 Ваши активные сборы:
@@ -123,5 +131,6 @@ export const handleBackToMainCommand = async (
   chatId: number,
   userId: number
 ): Promise<any> => {
+  console.log(`[MenuCommands] Handling back_to_main command for user ${userId} in chat ${chatId}`);
   return handleStartCommand(token, chatId, userId);
 };
