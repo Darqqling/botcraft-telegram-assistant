@@ -1,8 +1,9 @@
 
-import { addPayment, notifyPaymentSuccess, ensureUserExists } from '../../collectionService';
+import { ensureUserExists } from '../../collectionService';
 import { getCollectionById, getUserById, saveCollection } from '../../storageService';
 import { sendMessage } from '../baseCommandHandler';
 import { InlineKeyboardMarkup } from '@/services/telegramService';
+import { addPayment, notifyPaymentSuccess } from '../../collectionService';
 
 // Обработка команды внесения оплаты
 export const handlePay = async (
@@ -54,57 +55,25 @@ export const handlePay = async (
     // Создаем пользователя, если он еще не существует
     ensureUserExists(userId, firstName, chatId, username, lastName);
     
-    // Для тестирования - имитируем сценарий с прямой передачей денег организатору
-    if (amount <= 1000) {
-      // Электронный платеж для небольших сумм - автоматическое подтверждение
-      const success = await addPayment(token, collectionId, userId, amount);
-      
-      if (!success) {
-        return 'Произошла ошибка при обработке платежа. Пожалуйста, попробуйте еще раз.';
-      }
-      
-      // Отправляем уведомление об успешной оплате
-      await notifyPaymentSuccess(token, collectionId, userId);
-      
-      return `Платеж на сумму ${amount} руб. успешно зарегистрирован.\nСпасибо за участие в сборе "${collection.title}"!`;
-    } else {
-      // Ручная передача денег организатору для крупных сумм
-      // Обновляем информацию об участнике - отмечаем предполагаемый взнос
-      const participantIndex = collection.participants.findIndex(p => p.userId === userId);
-      
-      if (participantIndex !== -1) {
-        collection.participants[participantIndex].contribution = amount;
-        saveCollection(collection);
-      }
-      
-      // Отправляем запрос организатору на подтверждение платежа
-      const organizerId = collection.organizerId;
-      const organizer = getUserById(organizerId);
-      
-      if (organizer) {
-        try {
-          // Создаем клавиатуру с кнопкой подтверждения
-          const inlineKeyboard: InlineKeyboardMarkup = {
-            inline_keyboard: [
-              [
-                { text: "Подтвердить платеж", callback_data: `confirm_pay:${collectionId}:${userId}` }
-              ]
-            ]
-          };
-          
-          const message = `
-Пользователь ${firstName} ${lastName || ''} (ID: ${userId}) сообщает, что передал вам ${amount} руб. для сбора "${collection.title}".
-
-Для подтверждения платежа нажмите кнопку ниже:
-          `;
-          await sendMessage(token, organizer.chatId, message, { replyMarkup: inlineKeyboard });
-        } catch (error) {
-          console.error(`Ошибка при отправке уведомления организатору:`, error);
-        }
-      }
-      
-      return `Сообщение о передаче ${amount} руб. отправлено организатору сбора "${collection.title}".\nПосле подтверждения организатором ваш взнос будет учтен.`;
-    }
+    // Предлагаем выбор способа оплаты
+    const inlineKeyboard: InlineKeyboardMarkup = {
+      inline_keyboard: [
+        [
+          { text: "💵 Я оплатил(а)", callback_data: `i_paid:${collectionId}:${amount}` }
+        ],
+        [
+          { text: "💳 Оплатить через бота", callback_data: `payment_options:${collectionId}:${amount}` }
+        ],
+        [
+          { text: "⬅️ Назад", callback_data: `status:${collectionId}` }
+        ]
+      ]
+    };
+    
+    await sendMessage(token, chatId, `Выберите способ оплаты взноса в размере ${amount} руб. для сбора "${collection.title}":`, 
+      { replyMarkup: inlineKeyboard });
+    
+    return '';
   } catch (error) {
     console.error('Ошибка при обработке платежа:', error);
     return 'Произошла ошибка при обработке платежа. Пожалуйста, попробуйте еще раз.';
@@ -173,7 +142,10 @@ export const handlePayCallback = async (
           { text: "5000 руб.", callback_data: `pay_amount:${collectionId}:5000` }
         ],
         [
-          { text: "Другая сумма", callback_data: `pay_custom:${collectionId}` }
+          { text: "💳 Оплатить", callback_data: `payment_options:${collectionId}` }
+        ],
+        [
+          { text: "⬅️ Назад", callback_data: `status:${collectionId}` }
         ]
       ]
     };
@@ -185,5 +157,48 @@ export const handlePayCallback = async (
   } catch (error) {
     console.error('Ошибка при обработке оплаты:', error);
     return 'Произошла ошибка при обработке оплаты. Пожалуйста, попробуйте еще раз.';
+  }
+};
+
+// Обработка запроса на подтверждение оплаты
+export const handleConfirmPayment = async (
+  token: string,
+  organizerId: number,
+  userId: number,
+  collectionId: string,
+  amount: number
+): Promise<boolean> => {
+  try {
+    // Получаем информацию о коллекции
+    const collection = getCollectionById(collectionId);
+    
+    if (!collection) {
+      return false;
+    }
+    
+    // Проверяем, является ли запрашивающий организатором
+    if (collection.organizerId !== organizerId) {
+      return false;
+    }
+    
+    // Добавляем платеж
+    await addPayment(token, collectionId, userId, amount);
+    
+    // Отправляем уведомление участнику
+    await notifyPaymentSuccess(token, collectionId, userId);
+    
+    // Отправляем подтверждение организатору
+    const organizer = getUserById(organizerId);
+    if (organizer) {
+      const user = getUserById(userId);
+      const userName = user ? `${user.firstName} ${user.lastName || ''}`.trim() : `Участник ${userId}`;
+      
+      await sendMessage(token, organizer.chatId, `Вы подтвердили платеж от ${userName} на сумму ${amount} руб. для сбора "${collection.title}".`);
+    }
+    
+    return true;
+  } catch (error) {
+    console.error('Ошибка при подтверждении платежа:', error);
+    return false;
   }
 };
