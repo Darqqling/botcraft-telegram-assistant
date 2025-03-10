@@ -1,6 +1,16 @@
 
 import { sendMessage as telegramSendMessage, InlineKeyboardMarkup } from '../../telegramService';
 
+// Track the last message sent to each chat to prevent duplicates
+const lastMessageSentTimestamp: Record<number, number> = {};
+const messageCache: Record<string, number> = {}; // Store message hash -> timestamp
+const RATE_LIMIT_MS = 1000; // 1 second between messages to the same chat
+
+// Helper to generate a hash for a message
+const getMessageHash = (chatId: number, text: string): string => {
+  return `${chatId}:${text.substring(0, 50)}`;
+};
+
 // Export sendMessage so it can be imported by other command handlers
 export const sendMessage = async (
   botToken: string,
@@ -8,8 +18,57 @@ export const sendMessage = async (
   text: string,
   options?: any
 ): Promise<any> => {
-  // Use the telegram service to send the message
-  return telegramSendMessage(botToken, chatId, text, options);
+  // Check if this is a duplicate message
+  const messageHash = getMessageHash(chatId, text);
+  const now = Date.now();
+  
+  // If this exact message was sent to this chat recently (within 5 seconds), don't send it again
+  if (messageCache[messageHash] && now - messageCache[messageHash] < 5000) {
+    console.log(`[MessageUtils] Preventing duplicate message to chat ${chatId}`);
+    return { ok: true, prevented: true, reason: 'duplicate' };
+  }
+  
+  // Rate limiting for the same chat
+  if (lastMessageSentTimestamp[chatId] && now - lastMessageSentTimestamp[chatId] < RATE_LIMIT_MS) {
+    const waitTime = RATE_LIMIT_MS - (now - lastMessageSentTimestamp[chatId]);
+    console.log(`[MessageUtils] Rate limiting message to chat ${chatId}, waiting ${waitTime}ms`);
+    
+    // Wait for the rate limit to expire
+    await new Promise(resolve => setTimeout(resolve, waitTime));
+  }
+  
+  try {
+    // Use the telegram service to send the message
+    const result = await telegramSendMessage(botToken, chatId, text, options);
+    
+    // Update the timestamp for this chat and cache the message hash
+    lastMessageSentTimestamp[chatId] = Date.now();
+    messageCache[messageHash] = Date.now();
+    
+    // Clean up old message cache entries (older than 10 minutes)
+    const cleanupTime = Date.now() - 600000;
+    Object.keys(messageCache).forEach(key => {
+      if (messageCache[key] < cleanupTime) {
+        delete messageCache[key];
+      }
+    });
+    
+    return result;
+  } catch (error: any) {
+    // If we get a rate limit error from Telegram, extract the retry time and wait
+    if (error.message && error.message.includes('Too Many Requests') && error.message.includes('retry after')) {
+      const retryAfterMatch = error.message.match(/retry after (\d+)/);
+      if (retryAfterMatch && retryAfterMatch[1]) {
+        const retryAfterSec = parseInt(retryAfterMatch[1], 10);
+        console.log(`[MessageUtils] Telegram rate limit hit, waiting ${retryAfterSec} seconds...`);
+        await new Promise(resolve => setTimeout(resolve, retryAfterSec * 1000));
+        
+        // Try again after waiting
+        return sendMessage(botToken, chatId, text, options);
+      }
+    }
+    throw error;
+  }
 };
 
 // Add sendGroupMessage which is used in participationCommands.ts
@@ -19,6 +78,6 @@ export const sendGroupMessage = async (
   text: string,
   options?: any
 ): Promise<any> => {
-  // Implementation goes here - same as sendMessage for now
+  // Use the same implementation with rate limiting and deduplication
   return sendMessage(botToken, chatId, text, options);
 };
