@@ -1,3 +1,4 @@
+
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { 
@@ -16,9 +17,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { getUpdates, sendMessage, BotInfo } from "@/services/telegramService";
+import { getUpdates, sendMessage, BotInfo, answerCallbackQuery } from "@/services/telegramService";
 import { getCollections, getUsers, getTransactions } from "@/services/storageService";
-import { processCommand } from "@/services/botCommandService";
+import { processCommand, processCallbackQuery } from "@/services/botCommandService";
 import { Collection, User, Transaction } from "@/types/collectionTypes";
 
 const Dashboard = () => {
@@ -32,6 +33,7 @@ const Dashboard = () => {
   const [users, setUsers] = useState<User[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [processingMessages, setProcessingMessages] = useState(false);
+  const [lastOffset, setLastOffset] = useState(0);
 
   useEffect(() => {
     const token = localStorage.getItem('telegram_bot_token');
@@ -48,8 +50,8 @@ const Dashboard = () => {
     loadUpdates();
     loadLocalData();
     
-    const updateInterval = setInterval(loadUpdates, 30000);
-    const processInterval = setInterval(processNewMessages, 15000);
+    const updateInterval = setInterval(loadUpdates, 15000);
+    const processInterval = setInterval(processNewMessages, 5000);
     
     return () => {
       clearInterval(updateInterval);
@@ -69,8 +71,16 @@ const Dashboard = () => {
       if (!token) return;
       
       setLoading(true);
-      const data = await getUpdates(token);
-      setUpdates(data.slice(-10).reverse());
+      const data = await getUpdates(token, lastOffset);
+      
+      if (data && data.length > 0) {
+        // Update offset for next polling to avoid getting same updates
+        const maxUpdateId = Math.max(...data.map((update: any) => update.update_id));
+        setLastOffset(maxUpdateId + 1);
+        
+        // Add new updates to the list
+        setUpdates(prev => [...data.slice(-10).reverse(), ...prev].slice(0, 10));
+      }
     } catch (error) {
       console.error("Ошибка загрузки обновлений:", error);
       toast.error("Не удалось загрузить последние сообщения");
@@ -88,24 +98,61 @@ const Dashboard = () => {
       
       setProcessingMessages(true);
       
-      const data = await getUpdates(token);
+      const data = await getUpdates(token, lastOffset);
+      
+      if (!data || data.length === 0) {
+        setProcessingMessages(false);
+        return;
+      }
+      
+      console.log(`[Dashboard] Processing ${data.length} new updates`);
       
       for (const update of data) {
+        // Process command messages
         if (update.message?.text && typeof update.message.text === 'string' && update.message.text.startsWith('/')) {
-          const response = await processCommand(
-            update.message.text,
-            update.message.chat.id,
-            update.message.from.id,
-            token
-          );
+          console.log(`[Dashboard] Processing command: ${update.message.text}`);
           
-          if (response) {
-            await sendMessage(token, update.message.chat.id, response);
+          try {
+            await processCommand(
+              update.message.text,
+              update.message.chat.id,
+              update.message.from.id,
+              token,
+              update.message.message_id
+            );
+          } catch (error) {
+            console.error(`[Dashboard] Error processing command ${update.message.text}:`, error);
+          }
+        }
+        
+        // Process callback queries (button clicks)
+        if (update.callback_query) {
+          console.log(`[Dashboard] Processing callback query: ${update.callback_query.data}`);
+          
+          try {
+            // First, immediately answer the callback query to remove "Loading..." indicator
+            await answerCallbackQuery(token, update.callback_query.id);
+            
+            // Then process the actual callback data
+            await processCallbackQuery(update.callback_query, token);
+          } catch (error) {
+            console.error(`[Dashboard] Error processing callback query:`, error);
           }
         }
       }
       
+      // Update the offset for next polling
+      if (data.length > 0) {
+        const maxUpdateId = Math.max(...data.map((update: any) => update.update_id));
+        setLastOffset(maxUpdateId + 1);
+      }
+      
+      // Refresh local data
       loadLocalData();
+      
+      // Update the displayed updates
+      setUpdates(prev => [...data.slice(-10).reverse(), ...prev].slice(0, 10));
+      
     } catch (error) {
       console.error("Ошибка обработки сообщений:", error);
     } finally {
@@ -123,7 +170,7 @@ const Dashboard = () => {
       const token = localStorage.getItem('telegram_bot_token');
       if (!token) return;
       
-      await sendMessage(token, chatId, messageText);
+      await sendMessage(token, Number(chatId), messageText);
       toast.success("Сообщение отправлено");
       setMessageText("");
     } catch (error) {

@@ -1,4 +1,3 @@
-
 import { sendMessage, answerCallback } from './messageUtils';
 import { 
   handleStartCommand, 
@@ -26,7 +25,7 @@ const { handleJoinCollectionCallback, handlePayCallback } = participation;
 const { handleSendRemindersCallback } = organizerCommands;
 const { handleStatusCallback, handleCollectionStatusCallback } = statusCommands;
 
-export const processCommand = (
+export const processCommand = async (
   command: string,
   chatId: number,
   userId: number,
@@ -52,32 +51,37 @@ export const processCommand = (
   
   console.log(`[CommandProcessor] Processing command: ${command} in chat ${chatId} (${isGroupChat(chatId) ? 'group' : 'personal'})`);
   
-  if (command === '/start') {
-    return handleStartCommand(botToken, chatId, userId);
-  } else if (command === '/help') {
-    return handleHelpCommand(botToken, chatId);
-  } else if (command === '/how_it_works') {
-    return handleHowItWorksCommand(botToken, chatId);
-  } else if (command === '/my_collections') {
-    return handleMyCollectionsCommand(botToken, chatId, userId);
-  } else if (command === '/new_collection') {
-    // Only allow new_collection command in group chats
-    if (isGroupChat(chatId)) {
-      return handleGroupNewCollectionCallback({ 
-        message: { chat: { id: chatId } },
-        from: { id: userId },
-        data: 'group_new_collection' 
-      }, botToken);
+  try {
+    if (command === '/start') {
+      return await handleStartCommand(botToken, chatId, userId);
+    } else if (command === '/help') {
+      return await handleHelpCommand(botToken, chatId);
+    } else if (command === '/how_it_works') {
+      return await handleHowItWorksCommand(botToken, chatId);
+    } else if (command === '/my_collections') {
+      return await handleMyCollectionsCommand(botToken, chatId, userId);
+    } else if (command === '/new_collection') {
+      // Only allow new_collection command in group chats
+      if (isGroupChat(chatId)) {
+        return await handleGroupNewCollectionCallback({ 
+          message: { chat: { id: chatId } },
+          from: { id: userId },
+          data: 'group_new_collection' 
+        }, botToken);
+      } else {
+        return await sendMessage(
+          botToken, 
+          chatId, 
+          "🚫 Создание сборов доступно только в групповых чатах. Пожалуйста, добавьте бота в групповой чат и используйте эту команду там."
+        );
+      }
     } else {
-      return sendMessage(
-        botToken, 
-        chatId, 
-        "🚫 Создание сборов доступно только в групповых чатах. Пожалуйста, добавьте бота в групповой чат и используйте эту команду там."
-      );
+      // Default response if no handler matches
+      return await sendMessage(botToken, chatId, "Неизвестная команда. Отправьте /help для получения списка доступных команд.");
     }
-  } else {
-    // Default response if no handler matches
-    return sendMessage(botToken, chatId, "Неизвестная команда. Отправьте /help для получения списка доступных команд.");
+  } catch (error) {
+    console.error(`[CommandProcessor] Error processing command ${command}:`, error);
+    return sendMessage(botToken, chatId, "Произошла ошибка при обработке вашей команды. Пожалуйста, попробуйте снова.");
   }
 };
 
@@ -96,21 +100,12 @@ export const processCallbackQuery = async (
   // Mark as processed
   processedCallbacks.add(`cb:${callbackId}`);
   
-  // Immediately acknowledge the callback query to remove "Loading..." indicator
-  try {
-    await answerCallback(botToken, callbackId);
-    console.log(`[CommandProcessor] Acknowledged callback query: ${callbackId}`);
-  } catch (error) {
-    console.error(`[CommandProcessor] Error acknowledging callback query:`, error);
-    // Continue processing even if acknowledgment fails
-  }
-  
   const chatId = callbackQuery.message.chat.id;
   const userId = callbackQuery.from.id;
   const callbackData = callbackQuery.data;
   const firstName = callbackQuery.from.first_name;
-  const lastName = callbackQuery.from.last_name;
-  const username = callbackQuery.from.username;
+  const lastName = callbackQuery.from.last_name || '';
+  const username = callbackQuery.from.username || '';
   
   const isGroup = isGroupChat(chatId);
   console.log(`[CommandProcessor] Processing callback query: ${callbackData} from user ${userId} in ${isGroup ? 'group' : 'personal'} chat ${chatId}`);
@@ -125,57 +120,57 @@ export const processCallbackQuery = async (
       case 'new_collection':
         // Only allow in personal chat if specifically requested (from a deeplink)
         if (!isGroup) {
-          return sendMessage(
+          return await sendMessage(
             botToken,
             chatId,
             "🚫 Создание сборов доступно только в групповых чатах. Пожалуйста, добавьте бота в групповой чат и используйте команду /new_collection там."
           );
         }
-        return handleNewCollectionCallback(callbackQuery, botToken);
+        return await handleNewCollectionCallback(callbackQuery, botToken);
         
       case 'group_new_collection':
         // Only allow in group chats
         if (!isGroup) {
-          return sendMessage(
+          return await sendMessage(
             botToken,
             chatId,
             "🚫 Создание сборов доступно только в групповых чатах. Пожалуйста, добавьте бота в групповой чат."
           );
         }
-        return handleGroupNewCollectionCallback(callbackQuery, botToken);
+        return await handleGroupNewCollectionCallback(callbackQuery, botToken);
         
       case 'my_collections':
         // Only makes sense in personal chat
         if (isGroup) {
-          return sendMessage(
+          return await sendMessage(
             botToken,
             chatId,
             "Для просмотра ваших сборов, пожалуйста, напишите боту в личные сообщения."
           );
         }
-        return handleMyCollectionsCommand(botToken, chatId, userId);
+        return await handleMyCollectionsCommand(botToken, chatId, userId);
         
       case 'how_it_works':
-        return handleHowItWorksCommand(botToken, chatId);
+        return await handleHowItWorksCommand(botToken, chatId);
         
       case 'help':
-        return handleHelpCommand(botToken, chatId);
+        return await handleHelpCommand(botToken, chatId);
         
       case 'back_to_main':
-        return handleBackToMainCommand(botToken, chatId, userId);
+        return await handleBackToMainCommand(botToken, chatId, userId);
         
       case 'join':
-        return handleJoinCollectionCallback(botToken, userId, chatId, firstName, parts, lastName, username);
+        return await handleJoinCollectionCallback(botToken, userId, chatId, firstName, parts, lastName, username);
         
       case 'pay':
-        return handlePayCallback(botToken, userId, chatId, firstName, parts, lastName, username);
+        return await handlePayCallback(botToken, userId, chatId, firstName, parts, lastName, username);
         
       case 'pay_amount':
         // Handle payment with predefined amount
         if (parts.length >= 3) {
           const collectionId = parts[1];
           const amount = parseFloat(parts[2]);
-          return handleIPaidCommand(botToken, chatId, userId, firstName, collectionId, amount);
+          return await handleIPaidCommand(botToken, chatId, userId, firstName, collectionId, amount);
         }
         break;
         
@@ -183,7 +178,7 @@ export const processCallbackQuery = async (
         if (parts.length >= 2) {
           const collectionId = parts[1];
           const amount = parts.length >= 3 ? parseFloat(parts[2]) : undefined;
-          return handlePaymentOptionsCommand(botToken, chatId, collectionId, amount);
+          return await handlePaymentOptionsCommand(botToken, chatId, collectionId, amount);
         }
         break;
         
@@ -192,26 +187,26 @@ export const processCallbackQuery = async (
           const collectionId = parts[1];
           // Get amount if provided
           const amount = parts.length >= 3 ? parseFloat(parts[2]) : 1000;
-          return handleIPaidCommand(botToken, chatId, userId, firstName, collectionId, amount);
+          return await handleIPaidCommand(botToken, chatId, userId, firstName, collectionId, amount);
         }
         break;
         
       case 'status':
-        return handleStatusCallback(callbackQuery, botToken);
+        return await handleStatusCallback(callbackQuery, botToken);
         
       case 'collection_status':
-        return handleCollectionStatusCallback(callbackQuery, botToken);
+        return await handleCollectionStatusCallback(callbackQuery, botToken);
         
       case 'send_reminders':
-        return handleSendRemindersCallback(callbackQuery, botToken);
+        return await handleSendRemindersCallback(callbackQuery, botToken);
         
       default:
         console.log(`[CommandProcessor] Unknown callback action: ${action}`);
-        return sendMessage(botToken, chatId, "Неизвестное действие. Попробуйте еще раз.");
+        return await sendMessage(botToken, chatId, "Неизвестное действие. Попробуйте еще раз.");
     }
   } catch (error) {
     console.error(`[CommandProcessor] Ошибка при обработке callback query:`, error);
-    return sendMessage(botToken, chatId, "Произошла ошибка при обработке вашего запроса. Пожалуйста, попробуйте еще раз.");
+    return await sendMessage(botToken, chatId, "Произошла ошибка при обработке вашего запроса. Пожалуйста, попробуйте еще раз.");
   }
   
   // Default response if no handler matches

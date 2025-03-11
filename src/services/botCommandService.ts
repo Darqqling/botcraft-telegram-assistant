@@ -1,43 +1,32 @@
 
 // Export the main processCommand as the default entry point
 import { 
-  processCommand, 
-  processCallbackQuery,
-  sendMessage,
-  sendGroupMessage,
-  handleStartCommand,
-  handleHelpCommand,
-  handleHowItWorksCommand,
-  handleMyCollectionsCommand,
-  handleBackToMainCommand,
-  handlePaymentOptionsCommand,
-  handleIPaidCommand,
-  handleNewCollectionCallback,
-  handleGroupNewCollectionCallback,
-  handleSendRemindersCallback,
-  handleStatusCallback,
-  handleCollectionStatusCallback
-} from './commands/baseCommandHandler';
+  processCommand as coreProcessCommand, 
+  processCallbackQuery as coreProcessCallbackQuery 
+} from './commands/core/commandProcessor';
 
-// Re-export from baseCommandHandler
+// Re-export the processor functions
+export const processCommand = coreProcessCommand;
+export const processCallbackQuery = coreProcessCallbackQuery;
+
+// Re-export other utility functions
 export { 
-  processCommand, 
-  processCallbackQuery, 
   sendMessage,
-  sendGroupMessage,
+  sendGroupMessage
+} from './commands/core/messageUtils';
+
+export {
   handleStartCommand,
   handleHelpCommand,
   handleHowItWorksCommand,
   handleMyCollectionsCommand,
-  handleBackToMainCommand,
+  handleBackToMainCommand
+} from './commands/core/menuCommands';
+
+export {
   handlePaymentOptionsCommand,
-  handleIPaidCommand,
-  handleNewCollectionCallback,
-  handleGroupNewCollectionCallback,
-  handleSendRemindersCallback,
-  handleStatusCallback,
-  handleCollectionStatusCallback
-};
+  handleIPaidCommand
+} from './commands/core/paymentHandlers';
 
 // Re-export all command handlers from their respective modules
 export * from './commands/collectionCreationCommands';
@@ -46,4 +35,4 @@ export * from './commands/organizerCommands';
 export * from './commands/statusCommands';
 export * from './commands/giftOptionCommands';
 
-export default processCommand;
+export default coreProcessCommand;

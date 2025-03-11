@@ -30,16 +30,24 @@ const BotConnect = () => {
     setLoading(true);
     
     try {
-      // Проверяем токен, запрашивая информацию о боте
+      // Clear any previous bot token
+      localStorage.removeItem('telegram_bot_token');
+      localStorage.removeItem('telegram_bot_info');
+      
+      // Get the bot info to validate the token
       const botInfo = await getMe(token);
       
-      // Сохраняем токен и информацию о боте в localStorage
+      if (!botInfo || !botInfo.id) {
+        throw new Error("Не удалось получить информацию о боте");
+      }
+      
+      // Save the token and bot info to localStorage
       localStorage.setItem('telegram_bot_token', token);
       localStorage.setItem('telegram_bot_info', JSON.stringify(botInfo));
       
       toast.success(`Бот @${botInfo.username} успешно подключен!`);
       
-      // Перенаправляем на панель управления
+      // Redirect to the dashboard
       navigate('/dashboard');
     } catch (error) {
       console.error('Ошибка при подключении бота:', error);
