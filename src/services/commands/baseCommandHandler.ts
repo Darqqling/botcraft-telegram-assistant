@@ -13,7 +13,8 @@ export {
   handleHelpCommand,
   handleHowItWorksCommand,
   handleMyCollectionsCommand,
-  handleBackToMainCommand
+  handleBackToMainCommand,
+  isGroupChat
 } from './core/menuCommands';
 
 // Re-export payment handlers
@@ -40,5 +41,5 @@ export const handleGroupNewCollectionCallback = collectionCreationCommands.handl
 export const handleSendRemindersCallback = organizerCommands.handleSendRemindersCallback;
 export const handleStatusCallback = statusCommands.handleStatusCallback;
 export const handleCollectionStatusCallback = statusCommands.handleCollectionStatusCallback;
-export const { handleJoinCollectionCallback } = participation;
-export const { handlePayCallback } = participation;
+export const handleJoinCollectionCallback = participation.handleJoinCollectionCallback;
+export const handlePayCallback = participation.handlePayCallback;

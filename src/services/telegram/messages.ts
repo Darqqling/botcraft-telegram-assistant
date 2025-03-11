@@ -23,18 +23,26 @@ export const sendMessage = async (
       text: text
     };
     
-    // Copy all options directly to the payload
-    // This is important as Telegram API expects specific field names
+    // Handle reply_markup properly - ensure it's properly stringified JSON
+    if (options.replyMarkup || options.reply_markup) {
+      const markup = options.replyMarkup || options.reply_markup;
+      // Only stringify if it's not already a string
+      payload.reply_markup = typeof markup === 'string' 
+        ? markup 
+        : JSON.stringify(markup);
+      
+      // Remove the replyMarkup property to avoid duplication
+      delete options.replyMarkup;
+    }
+    
+    // Copy all remaining options directly to the payload
     Object.keys(options).forEach(key => {
-      // Handle special case for reply_markup which might be pre-serialized
-      if (key === 'reply_markup' && typeof options[key] === 'string') {
-        payload[key] = options[key];
-      } else {
+      if (key !== 'reply_markup') { // Skip if we already handled it
         payload[key] = options[key];
       }
     });
     
-    console.log(`[TelegramService] Payload for sendMessage:`, JSON.stringify(payload).substring(0, 200) + "...");
+    console.log(`[TelegramService] Payload for sendMessage:`, JSON.stringify(payload).substring(0, 500) + "...");
     
     const response = await fetch(`${TELEGRAM_API}${token}/sendMessage`, {
       method: 'POST',

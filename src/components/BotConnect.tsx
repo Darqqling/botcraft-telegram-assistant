@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { MessageCircle } from "lucide-react";
 import { getMe } from "@/services/telegramService";
 import { useNavigate } from "react-router-dom";
+import { handleStartCommand } from "@/services/commands/core/menuCommands";
 
 const BotConnect = () => {
   const [token, setToken] = useState("");
@@ -48,6 +49,16 @@ const BotConnect = () => {
       localStorage.setItem('telegram_bot_info', JSON.stringify(botInfo));
       
       toast.success(`Бот @${botInfo.username} успешно подключен!`);
+      
+      // Send initial welcome message to test the command flow
+      try {
+        // We can't really send a message here since we don't know any chat IDs yet
+        // This will happen when users interact with the bot
+        console.log("Bot ready to process messages");
+      } catch (error) {
+        console.error("Error sending initial message:", error);
+        // Continue anyway, not critical
+      }
       
       // Redirect to the dashboard
       navigate('/dashboard');

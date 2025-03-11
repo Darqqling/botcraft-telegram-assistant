@@ -1,4 +1,3 @@
-
 import { sendMessage, answerCallback } from './messageUtils';
 import { 
   handleStartCommand, 
@@ -19,9 +18,16 @@ import * as giftOptionCommands from '../giftOptionCommands';
 
 // Track processed callback queries to prevent duplicate handling
 const processedCallbacks = new Set<string>();
+const processedMessageIds = new Set<number>();
 
 // Extract the specific handlers from the imported modules
-const { handleNewCollectionCallback, handleGroupNewCollectionCallback } = collectionCreationCommands;
+const { 
+  handleNewCollectionCallback, 
+  handleGroupNewCollectionCallback, 
+  handleCollectionCreationMessage,
+  handleStartCollectionCallback,
+  checkCollectionCreationState
+} = collectionCreationCommands;
 const { handleJoinCollectionCallback, handlePayCallback } = participation;
 const { handleSendRemindersCallback } = organizerCommands;
 const { handleStatusCallback, handleCollectionStatusCallback } = statusCommands;
@@ -70,11 +76,11 @@ export const processCommand = async (
           data: 'group_new_collection' 
         }, botToken);
       } else {
-        return await sendMessage(
-          botToken, 
-          chatId, 
-          "🚫 Создание сборов доступно только в групповых чатах. Пожалуйста, добавьте бота в групповой чат и используйте эту команду там."
-        );
+        return await handleNewCollectionCallback({
+          message: { chat: { id: chatId } },
+          from: { id: userId },
+          data: 'new_collection'
+        }, botToken);
       }
     } else {
       // Default response if no handler matches
@@ -84,6 +90,50 @@ export const processCommand = async (
     console.error(`[CommandProcessor] Error processing command ${command}:`, error);
     return sendMessage(botToken, chatId, "Произошла ошибка при обработке вашей команды. Пожалуйста, попробуйте снова.");
   }
+};
+
+export const processTextMessage = async (
+  message: any,
+  botToken: string
+): Promise<any> => {
+  if (!message || !message.text || !message.chat || !message.from) {
+    return null;
+  }
+  
+  const chatId = message.chat.id;
+  const userId = message.from.id;
+  const messageId = message.message_id;
+  
+  // Skip if we've already processed this message
+  if (processedMessageIds.has(messageId)) {
+    console.log(`[CommandProcessor] Skipping already processed text message: ${messageId}`);
+    return Promise.resolve({ ok: true, skipped: true });
+  }
+  
+  // Mark as processed
+  processedMessageIds.add(messageId);
+  
+  // Clean up old entries (keep last 1000 entries)
+  if (processedMessageIds.size > 1000) {
+    const oldestToRemove = Array.from(processedMessageIds).slice(0, processedMessageIds.size - 1000);
+    oldestToRemove.forEach(id => processedMessageIds.delete(id));
+  }
+  
+  console.log(`[CommandProcessor] Processing text message in chat ${chatId}: ${message.text.substring(0, 30)}...`);
+  
+  // Check if this is part of an ongoing collection creation
+  const creationState = checkCollectionCreationState(chatId);
+  if (creationState) {
+    return await handleCollectionCreationMessage(message, botToken);
+  }
+  
+  // If not part of collection creation and the message starts with '/', process as command
+  if (message.text.startsWith('/')) {
+    return await processCommand(message.text, chatId, userId, botToken, messageId);
+  }
+  
+  // No special handling needed for this text message
+  return null;
 };
 
 export const processCallbackQuery = async (
@@ -127,14 +177,6 @@ export const processCallbackQuery = async (
   try {
     switch (action) {
       case 'new_collection':
-        // Only allow in personal chat if specifically requested (from a deeplink)
-        if (!isGroup) {
-          return await sendMessage(
-            botToken,
-            chatId,
-            "🚫 Создание сборов доступно только в групповых чатах. Пожалуйста, добавьте бота в групповой чат и используйте команду /new_collection там."
-          );
-        }
         return await handleNewCollectionCallback(callbackQuery, botToken);
         
       case 'group_new_collection':
@@ -147,6 +189,9 @@ export const processCallbackQuery = async (
           );
         }
         return await handleGroupNewCollectionCallback(callbackQuery, botToken);
+        
+      case 'start_collection':
+        return await handleStartCollectionCallback(callbackQuery, botToken);
         
       case 'my_collections':
         // Only makes sense in personal chat
@@ -163,13 +208,30 @@ export const processCallbackQuery = async (
         return await handleHowItWorksCommand(botToken, chatId);
         
       case 'help':
-        return await handleHelpCommand(botToken, chatId);
+        return await sendMessage(
+          botToken,
+          chatId,
+          "Мы готовим инструкцию и ЧаВо. Следите за обновлениями!",
+          { replyMarkup: { inline_keyboard: [[{ text: "⬅️ Назад", callback_data: "back_to_main" }]] } }
+        );
         
       case 'back_to_main':
         return await handleBackToMainCommand(botToken, chatId, userId);
         
       case 'join':
         return await handleJoinCollectionCallback(botToken, userId, chatId, firstName, parts, lastName, username);
+        
+      case 'decline':
+        // Handle decline participation
+        if (parts.length >= 2) {
+          const collectionId = parts[1];
+          return await sendMessage(
+            botToken,
+            chatId,
+            `@${firstName} отказался от участия в сборе.`
+          );
+        }
+        break;
         
       case 'pay':
         return await handlePayCallback(botToken, userId, chatId, firstName, parts, lastName, username);

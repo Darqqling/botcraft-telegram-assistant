@@ -50,7 +50,8 @@ export const sendMessage = async (
     
     if (options) {
       if (options.replyMarkup) {
-        telegramOptions.reply_markup = JSON.stringify(options.replyMarkup);
+        // Correctly set reply_markup (Telegram's expected property name)
+        telegramOptions.reply_markup = options.replyMarkup;
       }
       
       if (options.parseMode) {
