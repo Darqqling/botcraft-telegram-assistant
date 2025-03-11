@@ -1,5 +1,5 @@
 
-import { sendMessage as telegramSendMessage, InlineKeyboardMarkup } from '../../telegramService';
+import { sendMessage as telegramSendMessage, InlineKeyboardMarkup, answerCallbackQuery } from '../../telegramService';
 
 // Track the last message sent to each chat to prevent duplicates
 const lastMessageSentTimestamp: Record<number, number> = {};
@@ -103,4 +103,26 @@ export const sendGroupMessage = async (
 ): Promise<any> => {
   // Use the same implementation with rate limiting and deduplication
   return sendMessage(botToken, chatId, text, options);
+};
+
+// Helper to answer callback queries and remove "Loading..." indicator
+export const answerCallback = async (
+  botToken: string,
+  callbackQueryId: string,
+  options?: {
+    text?: string;
+    showAlert?: boolean;
+    url?: string;
+    cacheTime?: number;
+  }
+): Promise<any> => {
+  try {
+    console.log(`[MessageUtils] Answering callback query: ${callbackQueryId}`);
+    const result = await answerCallbackQuery(botToken, callbackQueryId, options);
+    console.log(`[MessageUtils] Successfully answered callback query: ${callbackQueryId}`);
+    return result;
+  } catch (error) {
+    console.error(`[MessageUtils] Error answering callback query:`, error);
+    throw error;
+  }
 };

@@ -1,5 +1,4 @@
-
-import { sendMessage } from './messageUtils';
+import { sendMessage, answerCallback } from './messageUtils';
 import { 
   handleStartCommand, 
   handleHelpCommand, 
@@ -77,7 +76,6 @@ export const processCommand = (
       );
     }
   } else {
-    // For other commands, use existing handlers
     // Default response if no handler matches
     return sendMessage(botToken, chatId, "Неизвестная команда. Отправьте /help для получения списка доступных команд.");
   }
@@ -100,7 +98,7 @@ export const processCallbackQuery = async (
   
   // Immediately acknowledge the callback query to remove "Loading..." indicator
   try {
-    await answerCallbackQuery(botToken, callbackId);
+    await answerCallback(botToken, callbackId);
     console.log(`[CommandProcessor] Acknowledged callback query: ${callbackId}`);
   } catch (error) {
     console.error(`[CommandProcessor] Error acknowledging callback query:`, error);
