@@ -13,27 +13,28 @@ export const sendMessage = async (
   token: string, 
   chatId: number | string, 
   text: string, 
-  options: {
-    replyMarkup?: InlineKeyboardMarkup | ReplyKeyboardMarkup;
-    parseMode?: 'HTML' | 'Markdown' | 'MarkdownV2';
-    disableWebPagePreview?: boolean;
-  } = {}
+  options: any = {}
 ) => {
   try {
     console.log(`[TelegramService] Отправка сообщения в чат ${chatId}...`);
     
-    const { replyMarkup, parseMode = 'HTML', disableWebPagePreview = false } = options;
-    
     const payload: any = {
       chat_id: chatId,
-      text: text,
-      parse_mode: parseMode,
-      disable_web_page_preview: disableWebPagePreview,
+      text: text
     };
     
-    if (replyMarkup) {
-      payload.reply_markup = JSON.stringify(replyMarkup);
-    }
+    // Copy all options directly to the payload
+    // This is important as Telegram API expects specific field names
+    Object.keys(options).forEach(key => {
+      // Handle special case for reply_markup which might be pre-serialized
+      if (key === 'reply_markup' && typeof options[key] === 'string') {
+        payload[key] = options[key];
+      } else {
+        payload[key] = options[key];
+      }
+    });
+    
+    console.log(`[TelegramService] Payload for sendMessage:`, JSON.stringify(payload).substring(0, 200) + "...");
     
     const response = await fetch(`${TELEGRAM_API}${token}/sendMessage`, {
       method: 'POST',

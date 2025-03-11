@@ -46,11 +46,11 @@ export const sendMessage = async (
   
   try {
     // Format options properly for Telegram API
-    let telegramOptions: any = {};
+    const telegramOptions: any = {};
     
     if (options) {
       if (options.replyMarkup) {
-        telegramOptions.reply_markup = options.replyMarkup;
+        telegramOptions.reply_markup = JSON.stringify(options.replyMarkup);
       }
       
       if (options.parseMode) {

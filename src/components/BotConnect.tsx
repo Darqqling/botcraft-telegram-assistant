@@ -41,6 +41,8 @@ const BotConnect = () => {
         throw new Error("Не удалось получить информацию о боте");
       }
       
+      console.log("Bot connection successful, info:", botInfo);
+      
       // Save the token and bot info to localStorage
       localStorage.setItem('telegram_bot_token', token);
       localStorage.setItem('telegram_bot_info', JSON.stringify(botInfo));

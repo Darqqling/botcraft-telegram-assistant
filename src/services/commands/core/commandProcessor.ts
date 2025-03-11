@@ -1,3 +1,4 @@
+
 import { sendMessage, answerCallback } from './messageUtils';
 import { 
   handleStartCommand, 
@@ -49,18 +50,18 @@ export const processCommand = async (
     }
   }
   
-  console.log(`[CommandProcessor] Processing command: ${command} in chat ${chatId} (${isGroupChat(chatId) ? 'group' : 'personal'})`);
+  console.log(`[CommandProcessor] Processing command: ${command} in chat ${chatId} (${isGroupChat(chatId) ? 'group' : 'personal'}) by user ${userId}`);
   
   try {
-    if (command === '/start') {
+    if (command === '/start' || command === '/start@your_bot_username') {
       return await handleStartCommand(botToken, chatId, userId);
-    } else if (command === '/help') {
+    } else if (command === '/help' || command === '/help@your_bot_username') {
       return await handleHelpCommand(botToken, chatId);
-    } else if (command === '/how_it_works') {
+    } else if (command === '/how_it_works' || command === '/how_it_works@your_bot_username') {
       return await handleHowItWorksCommand(botToken, chatId);
-    } else if (command === '/my_collections') {
+    } else if (command === '/my_collections' || command === '/my_collections@your_bot_username') {
       return await handleMyCollectionsCommand(botToken, chatId, userId);
-    } else if (command === '/new_collection') {
+    } else if (command === '/new_collection' || command === '/new_collection@your_bot_username') {
       // Only allow new_collection command in group chats
       if (isGroupChat(chatId)) {
         return await handleGroupNewCollectionCallback({ 
@@ -103,12 +104,20 @@ export const processCallbackQuery = async (
   const chatId = callbackQuery.message.chat.id;
   const userId = callbackQuery.from.id;
   const callbackData = callbackQuery.data;
-  const firstName = callbackQuery.from.first_name;
+  const firstName = callbackQuery.from.first_name || 'User';
   const lastName = callbackQuery.from.last_name || '';
   const username = callbackQuery.from.username || '';
   
   const isGroup = isGroupChat(chatId);
   console.log(`[CommandProcessor] Processing callback query: ${callbackData} from user ${userId} in ${isGroup ? 'group' : 'personal'} chat ${chatId}`);
+  
+  // First, answer the callback query to remove the loading indicator
+  try {
+    await answerCallback(botToken, callbackId);
+  } catch (error) {
+    console.error(`[CommandProcessor] Error answering callback query:`, error);
+    // Continue processing even if we couldn't answer the callback
+  }
   
   // Parse the callback data
   const parts = callbackData.split(':');
