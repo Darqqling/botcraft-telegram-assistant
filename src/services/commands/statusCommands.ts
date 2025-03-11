@@ -1,6 +1,6 @@
 
 import { sendMessage } from './core/messageUtils';
-import { InlineKeyboardMarkup } from '@/services/telegramService';
+import { InlineKeyboardMarkup } from '@/services/telegram/types';
 import { getCollectionById } from '../storageService';
 
 // Using any for simplicity since we're just creating stubs to fix type errors

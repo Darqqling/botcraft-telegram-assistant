@@ -1,5 +1,5 @@
 
-import { InlineKeyboardMarkup } from '../../telegramService';
+import { InlineKeyboardMarkup } from '../../telegram/types';
 import { sendMessage } from './messageUtils';
 
 // Helper function to check if chat is a group chat

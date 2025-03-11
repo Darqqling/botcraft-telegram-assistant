@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
@@ -14,12 +14,12 @@ const BotConnect = () => {
   const navigate = useNavigate();
 
   // Check if we already have a token saved
-  useState(() => {
+  useEffect(() => {
     const savedToken = localStorage.getItem('telegram_bot_token');
     if (savedToken) {
       setToken(savedToken);
     }
-  });
+  }, []);
 
   const handleConnect = async () => {
     if (!token) {

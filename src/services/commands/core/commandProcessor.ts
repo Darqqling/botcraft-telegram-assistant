@@ -1,3 +1,4 @@
+
 import { sendMessage, answerCallback } from './messageUtils';
 import { 
   handleStartCommand, 
@@ -8,7 +9,6 @@ import {
   isGroupChat
 } from './menuCommands';
 import { handlePaymentOptionsCommand, handleIPaidCommand } from './paymentHandlers';
-import { answerCallbackQuery } from '../../telegramService';
 
 // Import all the necessary handlers
 import * as collectionCreationCommands from '../collectionCreationCommands';
@@ -109,6 +109,8 @@ export const processCallbackQuery = async (
   const userId = callbackQuery.from.id;
   const callbackData = callbackQuery.data;
   const firstName = callbackQuery.from.first_name;
+  const lastName = callbackQuery.from.last_name;
+  const username = callbackQuery.from.username;
   
   const isGroup = isGroupChat(chatId);
   console.log(`[CommandProcessor] Processing callback query: ${callbackData} from user ${userId} in ${isGroup ? 'group' : 'personal'} chat ${chatId}`);
@@ -163,10 +165,10 @@ export const processCallbackQuery = async (
         return handleBackToMainCommand(botToken, chatId, userId);
         
       case 'join':
-        return handleJoinCollectionCallback(botToken, userId, chatId, firstName, parts);
+        return handleJoinCollectionCallback(botToken, userId, chatId, firstName, parts, lastName, username);
         
       case 'pay':
-        return handlePayCallback(botToken, userId, chatId, firstName, parts);
+        return handlePayCallback(botToken, userId, chatId, firstName, parts, lastName, username);
         
       case 'pay_amount':
         // Handle payment with predefined amount
@@ -180,7 +182,8 @@ export const processCallbackQuery = async (
       case 'payment_options':
         if (parts.length >= 2) {
           const collectionId = parts[1];
-          return handlePaymentOptionsCommand(botToken, chatId, collectionId);
+          const amount = parts.length >= 3 ? parseFloat(parts[2]) : undefined;
+          return handlePaymentOptionsCommand(botToken, chatId, collectionId, amount);
         }
         break;
         

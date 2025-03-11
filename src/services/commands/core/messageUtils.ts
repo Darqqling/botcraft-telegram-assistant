@@ -16,7 +16,11 @@ export const sendMessage = async (
   botToken: string,
   chatId: number,
   text: string,
-  options?: any
+  options?: {
+    replyMarkup?: InlineKeyboardMarkup;
+    parseMode?: 'HTML' | 'Markdown' | 'MarkdownV2';
+    disableWebPagePreview?: boolean;
+  }
 ): Promise<any> => {
   // Check if this is a duplicate message
   const messageHash = getMessageHash(chatId, text);
@@ -99,7 +103,11 @@ export const sendGroupMessage = async (
   botToken: string,
   chatId: number,
   text: string,
-  options?: any
+  options?: {
+    replyMarkup?: InlineKeyboardMarkup;
+    parseMode?: 'HTML' | 'Markdown' | 'MarkdownV2';
+    disableWebPagePreview?: boolean;
+  }
 ): Promise<any> => {
   // Use the same implementation with rate limiting and deduplication
   return sendMessage(botToken, chatId, text, options);
